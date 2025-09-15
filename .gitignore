@@ -1,0 +1,41 @@
+# PlatformIO build files
+/.pio/
+.pioenvs/
+*.pio
+
+# Build / cache ESP-IDF
+/build/
+sdkconfig
+sdkconfig.old
+
+# Logs / monitor
+*.log
+
+# VSCode / editor files
+.vscode/
+*.code-workspace
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Backup / temporary
+*.bak
+*.swp
+*.tmp
+
+# Test coverage
+coverage/
+*.gcda
+*.gcno
+*.gcov
+
+# Python environment (PlatformIO uses Python)
+venv/
+.env/
+__pycache__/
+
+# Arduino specific (in case)
+*.elf
+*.bin
+*.hex
