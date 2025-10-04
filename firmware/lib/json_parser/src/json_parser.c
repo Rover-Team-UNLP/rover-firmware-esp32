@@ -4,6 +4,7 @@
 - Author/s: @JuanCruzFerreiraM
 - Last-update: 2025-10-01
 - ====================================== */
+#include <stdio.h>
 #include "json_parser.h"
 
 /**
@@ -13,38 +14,74 @@
  */
 static json_parser_status_t push(const data_cmd *cmd);
 
+cmd_buffer_t cmd_buffer = {0};
+
 json_parser_status_t parse_json(char *data, char *uart_string)
 {
-    data_cmd *new_command;
+    data_cmd new_command = {0};
     cJSON *json = cJSON_Parse(data);
+    if (!json)
+    {
+        return STATUS_PARSE_ERROR;
+    }
     cJSON *cmd = cJSON_GetObjectItem(json, "cmd");
-    if (!(cJSON_IsNumber(cmd) && (cmd->valueint != NULL)))
+    if (!(cJSON_IsNumber(cmd)))
+    {
+        cJSON_Delete(json);
         return STATUS_PARSE_ERROR;
+    }
 
-    new_command->cmd = (rover_cmd_type_t)cmd->valueint;
+    new_command.cmd = (rover_cmd_type_t)cmd->valueint;
     cJSON *id = cJSON_GetObjectItem(json, "id");
-    if (!(cJSON_isNumber(id) && (id->valueint != NULL)))
+    if (!(cJSON_IsNumber(id)))
+    {
+        cJSON_Delete(json);
         return STATUS_PARSE_ERROR;
+    }
 
-    new_command->id = id->valueint;
+    new_command.id = id->valueint;
     cJSON *params = cJSON_GetObjectItem(json, "params");
     if (!(cJSON_IsArray(params)))
+    {
+        cJSON_Delete(json);
         return STATUS_PARSE_ERROR;
+    }
 
     int params_len = cJSON_GetArraySize(params);
     if (params_len > CMD_PARAMS_LEN)
+    {
+        cJSON_Delete(json);
         return STATUS_PARSE_ERROR;
-    new_command->total_params = params_len;
-
+    }
+    snprintf(uart_string, 256, "%u-%d", new_command.id, new_command.cmd);
+    if (params_len == 0) 
+    {
+        snprintf(uart_string + 4, 252, "\n");
+    }
     for (int i = 0; i < params_len; i++)
     {
         cJSON *item = cJSON_GetArrayItem(params, i);
-        if (!(cJSON_isNumber(item) && (item->valueint != NULL)))
+        if (!(cJSON_IsNumber(item)))
+        {
+            cJSON_Delete(json);
             return STATUS_PARSE_ERROR;
-        /**
-         * Lo voy a dejar aca, vamos a usar doubles, algo a agregar es que a medida que leemos los valores del JSON, los agreguemos al string final.
-         */
+        }
+        new_command.params[i] = item->valuedouble;
+        size_t current_len = strlen(uart_string);
+        size_t remaining = 256 - current_len;
+        if (i == params_len - 1)
+        {
+            snprintf(uart_string + current_len, remaining, "-%.2f\n", new_command.params[i]);
+        }
+        else
+        {
+            snprintf(uart_string + current_len, remaining, "-%.2f", new_command.params[i]);
+        }
     }
+    new_command.total_params = params_len;
+    push(&new_command);
+    cJSON_Delete(json);
+    return STATUS_OK;
 }
 
 json_parser_status_t take_cmd(uint16_t id, data_cmd *command)
@@ -64,7 +101,7 @@ json_parser_status_t take_cmd(uint16_t id, data_cmd *command)
 
 json_parser_status_t modify_cmd(uint16_t id, data_cmd *command)
 {
-    if ((id == 0) && (id == command->id))
+    if ((id == 0) || !command)
     {
         return STATUS_NOT_VALID_ID;
     }
