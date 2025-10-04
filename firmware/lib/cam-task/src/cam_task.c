@@ -1,3 +1,9 @@
+/* ======================================
+- File: cam_task.c
+- Description: implementation of streaming of MJPEG capture with a Cam using a HTTP server
+- Author/s: @JuanCruzFerreiraM
+- Last-update: 2025-10-04
+- ====================================== */
 #include "cam_task.h"
 
 esp_err_t uri_get_handler(httpd_req_t *req);

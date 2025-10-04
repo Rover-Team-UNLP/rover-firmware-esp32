@@ -1,3 +1,9 @@
+/* ======================================
+- File: cam_task.h
+- Description: header of streaming of MJPEG capture with a Cam using a HTTP server
+- Author/s: @JuanCruzFerreiraM
+- Last-update: 2025-10-04
+- ====================================== */
 #ifndef CAM_TASK
 #define CAM_TASK
 
