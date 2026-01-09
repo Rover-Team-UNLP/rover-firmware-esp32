@@ -8,10 +8,11 @@
 #define CAM_TASK
 
 #include "esp_camera.h"
-#include "esp_https_server.h"
+#include "esp_http_client.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include <stdint.h>
+#include "app_globals.h"
 
 #define Y2_GPIO_NUM 5
 #define Y3_GPIO_NUM 18
@@ -30,6 +31,9 @@
 #define SIOC_GPIO_NUM 27
 #define PWDN_GPIO_NUM 32
 
+const char *url = "url_for_server";
+
+
 /**
  * @brief This function initialize the camera using the camera_init() function define at esp_camera.h with the configuration for JPEG at 20FPS.
  *
@@ -37,11 +41,6 @@
  */
 esp_err_t start_camera();
 
-/**
- * @brief Starts a HTTPS server with one URI handler to get the frames from the camera.
- *
- * @return a httpd_handle_t with the server
-*/
-httpd_handle_t server_init();
+void camera_task(void);
 
 #endif
