@@ -2,12 +2,13 @@
 - File: cam_task.c
 - Description: implementation of streaming of MJPEG capture with a Cam using a HTTP server
 - Author/s: @JuanCruzFerreiraM
-- Last-update: 2025-10-04
+- Last-update: 2026-01-06
 - ====================================== */
 #include "cam_task.h"
 
-esp_err_t uri_get_handler(httpd_req_t *req);
+static TaskHandle_t cam_task_handle = NULL;
 
+esp_err_t http_client_event_handler(esp_http_client_event_t *);
 
 esp_err_t start_camera()
 {
@@ -45,50 +46,111 @@ esp_err_t start_camera()
     return error;
 }
 
-httpd_handle_t server_init() {
-    httpd_config_t server_config =  HTTPD_DEFAULT_CONFIG();
-    server_config.task_priority = 1; //For the first try we use the server on low priority. 
-    httpd_handle_t server = NULL;
+void camera_task(void *pvParameters)
+{
+    cam_task_handle = xTaskGetCurrentTaskHandle();
+    uint32_t notify_value;
+    esp_http_client_config_t config = {
+        .url = url, // Variable global o definida en header
+        .method = HTTP_METHOD_POST,
+        .event_handler = http_client_event_handler,
+        .timeout_ms = 5000,
+        .transport_type = HTTP_TRANSPORT_OVER_TCP};
 
-    httpd_uri_t uri_get = {
-        .uri  = "/stream",
-        .method = HTTP_GET,
-        .handler = uri_get_handler,
-        .user_ctx = NULL
-    };
+    while (1)
+    {
 
-    if (httpd_start(&server, &server_config) == ESP_OK) {
-        httpd_register_uri_handler(server, &uri_get);
-    };
+        esp_http_client_handle_t client = esp_http_client_init(&config);
+        esp_http_client_set_header(client, "Content-Type", "multipart/x-mixed-replace; boundary=frame");
 
-    return server;
-}
+        esp_err_t err = esp_http_client_open(client, -1);
 
+        if (err != ESP_OK)
+        {
+            Error_inf error_msg = {.id = err, .source = CAMERA, .response_type = 0};
+            xQueueSend(error_queue, &error_msg, 0);
 
-esp_err_t uri_get_handler(httpd_req_t *req) {
-    httpd_resp_set_type(req, "multipart/x-mixed-replace; boundary=frame");
-    
-    while(1) {
-        camera_fb_t *fb = esp_camera_fb_get();
-        if (!fb) {
+            esp_http_client_cleanup(client);
+            vTaskDelay(pdMS_TO_TICKS(5000));
             continue;
         }
-        
-        char header[64];
-        int header_len = snprintf(header, sizeof(header),
-            "--frame\r\n"
-            "Content-Type: image/jpeg\r\n"
-            "Content-Length: %u\r\n\r\n", fb->len);
-        
-        httpd_resp_send_chunk(req, header, header_len);
 
-        httpd_resp_send_chunk(req, (const char *)fb->buf, fb->len);
+        BaseType_t notify_recv = xTaskNotifyWait(0, 0, &notify_value, pdMS_TO_TICKS(5000));
+        bool connection_establish = (notify_recv == pdTRUE && notify_value == 1);
 
-        httpd_resp_send_chunk(req, "\r\n", 2);
+        while (connection_establish)
+        {
+            uint32_t ulStatus = 0;
+            if (xTaskNotifyWait(0, 0, &ulStatus, 0) == pdTRUE)
+            {
+                if (ulStatus == 0)
+                {
+                    Error_inf error_msg = {.id = err, .source = CAMERA, .response_type = 0};
+                    xQueueSend(error_queue, &error_msg,0);
+                    connection_establish = false;
+                    break; 
+                }
+            }
 
-        esp_camera_fb_return(fb);
+            camera_fb_t *fb = esp_camera_fb_get();
+            if (!fb)
+            {
+                Error_inf error_msg = {.id = 2, .source = CAMERA, .response_type = 0};
+                xQueueSend(error_queue, &error_msg, 0);
+                break;
+            }
 
-        vTaskDelay(pdMS_TO_TICKS(50)); //20 FPS
+            char part_header[128];
+            int header_len = snprintf(part_header, sizeof(part_header),
+                                      "--frame\r\n"
+                                      "Content-Type: image/jpeg\r\n"
+                                      "Content-Length: %u\r\n\r\n",
+                                      fb->len);
+
+            bool write_err = false;
+            // Secuencia de envío: Header -> Payload -> Footer
+            if (esp_http_client_write(client, part_header, header_len) < 0)
+                write_err = true;
+            if (!write_err && esp_http_client_write(client, (const char *)fb->buf, fb->len) < 0)
+                write_err = true;
+            if (!write_err && esp_http_client_write(client, "\r\n", 2) < 0)
+                write_err = true;
+
+            esp_camera_fb_return(fb);
+
+            if (write_err)
+            {
+                Error_inf error_msg = {.id = 3, .source = CAMERA, .response_type = 1};
+                xQueueSend(error_queue, &error_msg, 0);
+                connection_establish = false;
+            }
+
+            vTaskDelay(pdMS_TO_TICKS(40)); // Control de tasa de frames
+        }
+
+        esp_http_client_cleanup(client);
+        vTaskDelay(pdMS_TO_TICKS(2000));
     }
-    return ESP_OK; 
+}
+
+esp_err_t http_client_event_handler(esp_http_client_event_t *evt)
+{
+    switch (evt->event_id)
+    {
+    case HTTP_EVENT_ON_CONNECTED:
+        if (cam_task_handle != NULL)
+        {
+            xTaskNotify(cam_task_handle, 1, eSetValueWithOverwrite);
+        }
+        break;
+    case HTTP_EVENT_DISCONNECTED:
+        if (cam_task_handle != NULL)
+        {
+            xTaskNotify(cam_task_handle, 0, eSetValueWithOverwrite);
+        }
+        break;
+    default:
+        break;
+    }
+    return ESP_OK;
 }
