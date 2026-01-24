@@ -41,6 +41,6 @@ const char *url = "url_for_server";
  */
 esp_err_t start_camera();
 
-void camera_task(void);
+void camera_task(void *);
 
 #endif
