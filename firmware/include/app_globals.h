@@ -10,6 +10,7 @@
 
 #include "freertos/queue.h"
 #include "communication.h"
+#include "stdint.h"
 
 extern QueueHandle_t error_queue;
 extern QueueHandle_t cmd_queue;
