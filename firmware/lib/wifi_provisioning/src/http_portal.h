@@ -3,6 +3,7 @@
 
 #include "esp_http_server.h"
 #include "esp_err.h"
+#include "nvs_storage.h"
 
 typedef struct {
     httpd_handle_t handler;
