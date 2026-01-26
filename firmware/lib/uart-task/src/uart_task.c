@@ -39,7 +39,7 @@ void init_uart()
     uart_driver_install(UART_NUM, RX_SIZE, TX_SIZE, QUEUE_SIZE, &uart_queue, 0);
 }
 
-void task_uart()
+void task_uart(void *pvParameters)
 {
     while (1)
     {
