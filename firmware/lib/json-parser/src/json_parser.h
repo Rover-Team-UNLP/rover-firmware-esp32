@@ -11,19 +11,13 @@
 #include "cJSON.h"
 #include "stdint.h"
 #include "string.h"
+#include "communication.h"
 
 #define CMD_BUFFER_LEN 10
 #define CMD_PARAMS_LEN 10
 
 // We could define macros with the limits of the params. x_velocity_max, etc.
 
-typedef enum
-{
-    CMD_MOVE_FORWARD = 0,
-    CMD_MOVE_BACKWARDS,
-    CMD_MOVE_LEFT,
-    CMD_MOVE_RIGHT
-} rover_cmd_type_t;
 
 typedef enum
 {
@@ -34,14 +28,7 @@ typedef enum
     STATUS_NOT_VALID_ID
 } json_parser_status_t;
 
-typedef struct
-{
-    uint16_t id;
-    rover_cmd_type_t cmd;
-    double params[CMD_PARAMS_LEN]; // This is a estimate, we should see if it's less or more.
-    uint8_t total_params;
 
-} data_cmd;
 
 typedef struct
 {

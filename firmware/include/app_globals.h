@@ -13,7 +13,7 @@
 
 extern QueueHandle_t error_queue;
 extern QueueHandle_t cmd_queue;
-extern QueueHandle_t json_queue;
+
 
 typedef enum
 {
