@@ -36,6 +36,6 @@
  */
 void init_uart(void);
 
-void task_uart(void);
+void task_uart(void *);
 
 #endif

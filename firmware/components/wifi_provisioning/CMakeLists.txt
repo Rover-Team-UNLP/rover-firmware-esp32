@@ -6,6 +6,8 @@ idf_component_register(
         "src/dns_server.c"
     INCLUDE_DIRS 
         "include"
+        "../../include"
+        "src"
     REQUIRES 
         nvs_flash 
         esp_wifi 
