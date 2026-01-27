@@ -91,6 +91,7 @@ json_parser_status_t parse_cmd(data_cmd cmd, char *uart_string)
             snprintf(uart_string + current_len, remaining, "-%.2f", cmd.params[i]);
         }
     }
+    return STATUS_OK;
 }
 
 json_parser_status_t take_cmd(uint16_t id, data_cmd *command)

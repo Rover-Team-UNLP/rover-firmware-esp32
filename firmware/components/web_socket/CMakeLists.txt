@@ -1,0 +1,12 @@
+idf_component_register(
+    SRCS 
+        "src/web_socket.c"
+    INCLUDE_DIRS 
+        "include"
+        "../../include"
+    REQUIRES
+        esp_event
+        esp_websocket_client
+        freertos
+        json-parser
+)

@@ -1,0 +1,11 @@
+idf_component_register(
+    SRCS 
+        "src/uart_task.c"
+    INCLUDE_DIRS 
+        "include"
+        "../../include"
+    REQUIRES
+        driver
+        freertos
+        json-parser
+)
