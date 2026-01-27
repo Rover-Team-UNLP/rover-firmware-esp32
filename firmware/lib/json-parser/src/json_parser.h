@@ -60,6 +60,8 @@ json_parser_status_t modify_cmd(uint16_t id, data_cmd *command);
  * @param data (char *) a string with the json.
  * @return a status code.
  */
-json_parser_status_t parse_json(char *data, char *uart_string);
+json_parser_status_t parse_json(char *data, uint16_t * ret_id);
+
+json_parser_status_t parse_cmd(data_cmd cmd, char *uart_string);
 
 #endif
