@@ -16,7 +16,7 @@ static json_parser_status_t push(const data_cmd *cmd);
 
 cmd_buffer_t cmd_buffer = {0};
 
-json_parser_status_t parse_json(char *data, char *uart_string)
+json_parser_status_t parse_json(char *data, uint16_t * ret_id)
 {
     data_cmd new_command = {0};
     cJSON *json = cJSON_Parse(data);
@@ -40,6 +40,7 @@ json_parser_status_t parse_json(char *data, char *uart_string)
     }
 
     new_command.id = id->valueint;
+    *ret_id = new_command.id;
     cJSON *params = cJSON_GetObjectItem(json, "params");
     if (!(cJSON_IsArray(params)))
     {
@@ -53,11 +54,6 @@ json_parser_status_t parse_json(char *data, char *uart_string)
         cJSON_Delete(json);
         return STATUS_PARSE_ERROR;
     }
-    snprintf(uart_string, 256, "%u-%d", new_command.id, new_command.cmd);
-    if (params_len == 0) 
-    {
-        snprintf(uart_string + 4, 252, "\n");
-    }
     for (int i = 0; i < params_len; i++)
     {
         cJSON *item = cJSON_GetArrayItem(params, i);
@@ -67,21 +63,34 @@ json_parser_status_t parse_json(char *data, char *uart_string)
             return STATUS_PARSE_ERROR;
         }
         new_command.params[i] = item->valuedouble;
-        size_t current_len = strlen(uart_string);
-        size_t remaining = 256 - current_len;
-        if (i == params_len - 1)
-        {
-            snprintf(uart_string + current_len, remaining, "-%.2f\n", new_command.params[i]);
-        }
-        else
-        {
-            snprintf(uart_string + current_len, remaining, "-%.2f", new_command.params[i]);
-        }
     }
     new_command.total_params = params_len;
     push(&new_command);
     cJSON_Delete(json);
     return STATUS_OK;
+}
+
+json_parser_status_t parse_cmd(data_cmd cmd, char *uart_string)
+{
+    uint8_t params_len = cmd.total_params;
+    snprintf(uart_string, 256, "%u-%d", cmd.id, cmd.cmd);
+    if (params_len == 0)
+    {
+        snprintf(uart_string + 4, 252, "\n");
+    }
+    for (int i = 0; i < params_len; i++)
+    {
+        size_t current_len = strlen(uart_string);
+        size_t remaining = 256 - current_len;
+        if (i == params_len - 1)
+        {
+            snprintf(uart_string + current_len, remaining, "-%.2f\n", cmd.params[i]);
+        }
+        else
+        {
+            snprintf(uart_string + current_len, remaining, "-%.2f", cmd.params[i]);
+        }
+    }
 }
 
 json_parser_status_t take_cmd(uint16_t id, data_cmd *command)
