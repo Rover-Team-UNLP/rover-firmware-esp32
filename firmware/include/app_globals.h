@@ -12,7 +12,8 @@
 #include "communication.h"
 #include "stdint.h"
 
-extern QueueHandle_t error_queue;
+extern QueueHandle_t to_error_queue;
+extern QueueHandle_t from_error_queue;
 extern QueueHandle_t cmd_queue;
 
 
