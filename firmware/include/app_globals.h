@@ -16,7 +16,6 @@ extern QueueHandle_t to_error_queue;
 extern QueueHandle_t from_error_queue;
 extern QueueHandle_t cmd_queue;
 
-
 typedef enum
 {
     UART = 0,
@@ -25,13 +24,21 @@ typedef enum
     WEB_SOCKET,
 } source_type_t;
 
-typedef struct 
+typedef enum
+{
+    HTTP_CLIENT_NO_OPEN = 0,
+    UL_STATUS_FAIL,
+    FRAME_NULL, 
+    WRITE_ERROR,
+
+} rover_errors_t;
+
+typedef struct
 {
     source_type_t source;
     uint16_t id;
     uart_resp_id_t response_type;
+    rover_errors_t general_errors;
 } Error_inf;
-
-
 
 #endif
