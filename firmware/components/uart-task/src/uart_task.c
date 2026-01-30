@@ -2,7 +2,7 @@
 - File: uart_task.c
 - Description: Implementation of the uart_task
 - Author/s: @JuanCruzFerreiraM
-- Last-update: 2025-10-20
+- Last-update: 2026-01-30
 - ====================================== */
 #include "uart_task.h"
 
@@ -107,7 +107,14 @@ void ready_handler()
     vPortFree(command);
     if (!is_ack)
     {
-        // Debemos agregar el manejo internto de errores, colocando un error en la cola de errores, agregarlo cuando modifiquemos eso.
+        Error_inf not_ack_error = {
+            .id = 1,
+            .source = UART,
+            .response_type = 0,
+            .general_errors = NO_ACK,
+        };
+
+        xQueueSend(to_error_queue, &not_ack_error, 0);
     }
 }
 

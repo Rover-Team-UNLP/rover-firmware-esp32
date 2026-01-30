@@ -2,7 +2,7 @@
 - File: web_socket.c
 - Description: Implementation of the web socket logic for communication between ESP32-cam and WebServer.
 - Author/s: @JuanCruzFerreiraM
-- Last-update: 2026-01-27
+- Last-update: 2026-01-30
 - ====================================== */
 
 #include "web_socket.h"
@@ -68,13 +68,19 @@ void websocket_stop() {
 
 void websocket_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data) {
     esp_websocket_event_data_t *data = (esp_websocket_event_data_t *)event_data;
+    Error_inf websocket_handler_error = {
+        .id = 1, 
+        .source = WEB_SOCKET,
+        .response_type = 1,
+    };
     switch (event_id)
     {
     case WEBSOCKET_EVENT_DATA:
         if (data->op_code == WS_TRANSPORT_OPCODES_TEXT && data->data_len > 0) {
             char * buffer = malloc(data->data_len + 1);
             if (buffer == NULL) {
-                //deberíamos mandar un error
+                websocket_handler_error.general_errors = NULL_BUFFER;
+                xQueueSend(to_error_queue,&websocket_handler_error,0);
                 return;
             }
             memcpy(buffer,data->data_ptr,data->data_len);
@@ -82,7 +88,8 @@ void websocket_event_handler(void *handler_args, esp_event_base_t base, int32_t 
             uint16_t cmd_id = 0; 
             json_parser_status_t parse_status = parse_json(buffer,&cmd_id);
             if (parse_status != STATUS_OK) {
-                //deberíamos mandar un error
+                websocket_handler_error.general_errors = PARSE_ERROR;
+                xQueueSend(to_error_queue, &websocket_handler_error, 0);
                 free(buffer);
                 return;
             }
@@ -90,23 +97,27 @@ void websocket_event_handler(void *handler_args, esp_event_base_t base, int32_t 
             parse_status = take_cmd(cmd_id, &new_cmd);
             if (parse_status != STATUS_OK)
             {
-                // deberíamos mandar un error
+                websocket_handler_error.general_errors = PARSE_ERROR;
+                xQueueSend(to_error_queue, &websocket_handler_error, 0);
                 free(buffer);
                 return;
             }
             if (xQueueSend(cmd_queue, &new_cmd, pdMS_TO_TICKS(100)) != pdTRUE) {
-                //debemos mandar error
+                websocket_handler_error.general_errors = SEND_CMD_QUEUE_ERROR;
+                xQueueSend(to_error_queue, &websocket_handler_error, 0);
                 free(buffer);
                 return; 
             }
             free(buffer);
         } else  {
-            //deberíamos mandar un error 
+            websocket_handler_error.general_errors = OP_CODE_ERROR;
+            xQueueSend(to_error_queue, &websocket_handler_error, 0);
             return;
         }
             break;
     case WEBSOCKET_EVENT_DISCONNECTED:
-        //lógica para mandar error de desconexión
+        websocket_handler_error.general_errors = WEBSOCKET_DISCONNECTED;
+        xQueueSend(to_error_queue, &websocket_handler_error, 0);
         break; 
     default:
         break;

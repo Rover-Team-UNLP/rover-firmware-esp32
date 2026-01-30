@@ -2,7 +2,7 @@
 - File: app_globals.h
 - Description: Global variables and types for the app
 - Author/s: @JuanCruzFerreiraM
-- Last-update: 2025-10-20
+- Last-update: 2026-01-30
 - ====================================== */
 
 #ifndef APP_GLOBALS_H
@@ -30,7 +30,12 @@ typedef enum
     UL_STATUS_FAIL,
     FRAME_NULL, 
     WRITE_ERROR,
-
+    NO_ACK,
+    NULL_BUFFER,
+    PARSE_ERROR,
+    SEND_CMD_QUEUE_ERROR, 
+    OP_CODE_ERROR,
+    WEBSOCKET_DISCONNECTED,
 } rover_errors_t;
 
 typedef struct
