@@ -117,7 +117,7 @@ void error_handler(data_parse error) {
         .id = error.id,
         .response_type = error.response,
     };
-    xQueueSend(error_queue, &new_error, 0);
+    xQueueSend(to_error_queue, &new_error, 0);
     //Aca deberíamos esperar un respuesta del manejador de errores, pero todavía tengo que diseñar las diferentes politics de error    
 }
 

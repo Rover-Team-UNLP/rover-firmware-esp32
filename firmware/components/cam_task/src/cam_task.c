@@ -68,7 +68,7 @@ void camera_task(void *pvParameters)
         if (err != ESP_OK)
         {
             Error_inf error_msg = {.id = err, .source = CAMERA, .response_type = 0};
-            xQueueSend(error_queue, &error_msg, 0);
+            xQueueSend(to_error_queue, &error_msg, 0);
 
             esp_http_client_cleanup(client);
             vTaskDelay(pdMS_TO_TICKS(5000));
@@ -86,7 +86,7 @@ void camera_task(void *pvParameters)
                 if (ulStatus == 0)
                 {
                     Error_inf error_msg = {.id = err, .source = CAMERA, .response_type = 0};
-                    xQueueSend(error_queue, &error_msg,0);
+                    xQueueSend(to_error_queue, &error_msg,0);
                     connection_establish = false;
                     break; 
                 }
@@ -96,7 +96,7 @@ void camera_task(void *pvParameters)
             if (!fb)
             {
                 Error_inf error_msg = {.id = 2, .source = CAMERA, .response_type = 0};
-                xQueueSend(error_queue, &error_msg, 0);
+                xQueueSend(to_error_queue, &error_msg, 0);
                 break;
             }
 
@@ -121,7 +121,7 @@ void camera_task(void *pvParameters)
             if (write_err)
             {
                 Error_inf error_msg = {.id = 3, .source = CAMERA, .response_type = 1};
-                xQueueSend(error_queue, &error_msg, 0);
+                xQueueSend(to_error_queue, &error_msg, 0);
                 connection_establish = false;
             }
 
