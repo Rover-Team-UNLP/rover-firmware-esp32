@@ -11,4 +11,5 @@ idf_component_register(
         cam_task
         uart-task
         json-parser
+        freertos
 )

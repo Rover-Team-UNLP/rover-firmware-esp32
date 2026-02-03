@@ -6,12 +6,13 @@
 - ====================================== */
 
 #include "web_socket.h"
+#include "esp_crt_bundle.h"
 
 void websocket_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data);
-void send_error_task (void * pvParameters);
+//void send_error_task (void * pvParameters);
 
-static const char *WEBSOCKET_URI = "ws://echo.websocket.org"; //Just for test, it should be another one. 
-static const int STACK_SIZE = 4096;
+static const char *WEBSOCKET_URI = "ws://192.168.0.24:8080/ws/esp"; // Just for test, it should be another one.
+// static const int STACK_SIZE = 4096;
 
 static esp_websocket_client_handle_t client_handler = NULL;
 static TaskHandle_t task_handler = NULL;
@@ -21,8 +22,10 @@ esp_err_t websocket_start() {
     esp_websocket_client_config_t config = {0};
     config.uri = WEBSOCKET_URI;
     config.reconnect_timeout_ms =  10000;
+    //config.crt_bundle_attach = esp_crt_bundle_attach;
+    //config.headers = "ngrok-skip-browser-warning: true\r\n";
 
-    client_handler = esp_websocket_client_init(&config); 
+        client_handler = esp_websocket_client_init(&config);
 
     if (!client_handler) {
         return ESP_FAIL;
@@ -40,14 +43,14 @@ esp_err_t websocket_start() {
         return err;
     }
 
-    xTaskCreate(
+    /*xTaskCreate(
         send_error_task, 
         "ws_error_task", 
         STACK_SIZE,      
         NULL,            
         5,               
         &task_handler 
-    );
+    );*/
 
     return err;
 }

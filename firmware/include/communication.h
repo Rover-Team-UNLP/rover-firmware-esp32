@@ -13,8 +13,8 @@
 #define RESPONSE_LEN 13
 #define CMD_PARAMS_LEN 10
 
-const char *response_format = "%c:%d:%d:%c";
-const char *cmd_format = "%c:%d:";
+static const char *response_format = "%c:%d:%d:%c";
+static const char *cmd_format = "%c:%d:";
 
     /* IDs de respuestas/envíos desde EDU-CIAA */
     typedef enum {
