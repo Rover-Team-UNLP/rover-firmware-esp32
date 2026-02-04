@@ -2,9 +2,10 @@
 - File: uart_task.c
 - Description: Implementation of the uart_task
 - Author/s: @JuanCruzFerreiraM
-- Last-update: 2026-01-30
+- Last-update: 2026-02-03
 - ====================================== */
 #include "uart_task.h"
+#include "error_control.h"
 
 typedef struct
 {
@@ -97,6 +98,8 @@ void ready_handler()
         if (parse_data(data, read_bytes).response == RESP_ACK)
         {
             is_ack = 1;
+            // Notificar al control de errores que el comando se envió exitosamente
+            error_control_cmd_sent_ok();
         }
         if (!is_ack && i < 3)
         {
@@ -118,14 +121,15 @@ void ready_handler()
     }
 }
 
-void error_handler(data_parse error) {
+void error_handler(data_parse error)
+{
     Error_inf new_error = {
         .source = UART,
         .id = error.id,
         .response_type = error.response,
     };
     xQueueSend(to_error_queue, &new_error, 0);
-    //Aca deberíamos esperar un respuesta del manejador de errores, pero todavía tengo que diseñar las diferentes politics de error    
+    // Aca deberíamos esperar un respuesta del manejador de errores, pero todavía tengo que diseñar las diferentes politics de error
 }
 
 data_parse parse_data(char *data, int read_bytes)

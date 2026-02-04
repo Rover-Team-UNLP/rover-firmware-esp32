@@ -12,4 +12,5 @@ idf_component_register(
         uart-task
         json-parser
         freertos
+        error_control
 )

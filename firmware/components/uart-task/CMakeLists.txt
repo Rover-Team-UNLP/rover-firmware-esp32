@@ -8,4 +8,5 @@ idf_component_register(
         driver
         freertos
         json-parser
+        error_control
 )

@@ -26,16 +26,38 @@ typedef enum
 
 typedef enum
 {
+    // Camera errors
     HTTP_CLIENT_NO_OPEN = 0,
     UL_STATUS_FAIL,
-    FRAME_NULL, 
+    FRAME_NULL,
     WRITE_ERROR,
+    CAMERA_INIT_FAIL,
+
+    // UART errors
     NO_ACK,
+    UART_INVALID_CMD,
+    UART_INVALID_PARAMS,
+    UART_UNKNOWN_RESPONSE,
+    UART_PARSE_FAIL,
+
+    // WebSocket errors
     NULL_BUFFER,
     PARSE_ERROR,
-    SEND_CMD_QUEUE_ERROR, 
+    SEND_CMD_QUEUE_ERROR,
     OP_CODE_ERROR,
     WEBSOCKET_DISCONNECTED,
+    WEBSOCKET_INIT_FAIL,
+    WEBSOCKET_REGISTER_FAIL,
+    WEBSOCKET_START_FAIL,
+
+    // WiFi errors
+    WIFI_CONNECTION_FAIL,
+
+    // System errors
+    QUEUE_CREATE_FAIL,
+
+    // Keep this last for counting
+    ROVER_ERROR_COUNT
 } rover_errors_t;
 
 typedef struct

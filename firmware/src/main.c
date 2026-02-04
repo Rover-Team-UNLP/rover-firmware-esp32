@@ -17,6 +17,7 @@
 #include "communication.h"
 #include "wifi_manager.h"
 #include "web_socket.h"
+#include "error_control.h"
 
 static const char *TAG = "MAIN";
 
@@ -99,7 +100,7 @@ static esp_err_t init_queues(void)
         return ESP_FAIL;
     }
 
-    from_error_queue = xQueueCreate(10, sizeof(Error_inf));
+    from_error_queue = xQueueCreate(10, sizeof(error_web_msg_t));
     if (from_error_queue == NULL)
     {
         ESP_LOGE(TAG, "Failed to create from_error_queue");
@@ -135,11 +136,19 @@ void app_main(void)
         return;
     }
 
-    // 3. Iniciar el módulo de WiFi Provisioning
+    // 3. Iniciar el módulo de control de errores
+    ESP_LOGI(TAG, "Starting error control module...");
+    ret = error_control_init();
+    if (ret != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Failed to initialize error control, continuing anyway...");
+    }
+
+    // 4. Iniciar el módulo de WiFi Provisioning
     ESP_LOGI(TAG, "Starting WiFi provisioning...");
     wifi_provisioning_init();
 
-    // 4. Esperar a que el WiFi se conecte
+    // 5. Esperar a que el WiFi se conecte
     ESP_LOGI(TAG, "Waiting for WiFi connection...");
     EventBits_t bits = xEventGroupWaitBits(
         wifi_event_group,
@@ -154,14 +163,14 @@ void app_main(void)
         ESP_LOGI(TAG, "   WiFi Connected Successfully!");
         ESP_LOGI(TAG, "========================================");
 
-        // 5. Iniciar el WebSocket
+        // 6. Iniciar el WebSocket
         ESP_LOGI(TAG, "Starting WebSocket client...");
         ret = websocket_start();
         if (ret == ESP_OK)
         {
             ESP_LOGI(TAG, "WebSocket client started successfully");
 
-            // 6. Crear tarea para loggear comandos recibidos
+            // 7. Crear tarea para loggear comandos recibidos
             xTaskCreate(
                 cmd_logger_task,
                 "cmd_logger",

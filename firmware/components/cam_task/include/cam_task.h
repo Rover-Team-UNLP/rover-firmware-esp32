@@ -2,7 +2,7 @@
 - File: cam_task.h
 - Description: header of streaming of MJPEG capture with a Cam using a HTTP server
 - Author/s: @JuanCruzFerreiraM
-- Last-update: 2025-10-04
+- Last-update: 2026-02-03
 - ====================================== */
 #ifndef CAM_TASK
 #define CAM_TASK
@@ -13,6 +13,7 @@
 #include "freertos/task.h"
 #include <stdint.h>
 #include "app_globals.h"
+#include "error_control.h"
 
 #define Y2_GPIO_NUM 5
 #define Y3_GPIO_NUM 18
@@ -33,14 +34,33 @@
 
 const char *url = "url_for_server";
 
+/* ============== CAMERA QUALITY SETTINGS ============== */
+// Normal mode: QVGA (320x240), quality 10, 25 FPS (40ms delay)
+#define CAM_NORMAL_FRAMESIZE FRAMESIZE_QVGA
+#define CAM_NORMAL_QUALITY 10
+#define CAM_NORMAL_DELAY_MS 40
+
+// Degraded mode: QQVGA (160x120), quality 15, 10 FPS (100ms delay)
+#define CAM_DEGRADED_FRAMESIZE FRAMESIZE_QQVGA
+#define CAM_DEGRADED_QUALITY 15
+#define CAM_DEGRADED_DELAY_MS 100
 
 /**
  * @brief This function initialize the camera using the camera_init() function define at esp_camera.h with the configuration for JPEG at 20FPS.
  *
  * @return esp_err_t. Error code from the function camera_init(), will return ESP_OK if the initialization was successful.
  */
-esp_err_t start_camera();
+esp_err_t start_camera(void);
 
-void camera_task(void *);
+/**
+ * @brief Main camera streaming task
+ */
+void camera_task(void *pvParameters);
+
+/**
+ * @brief Ajusta la calidad de la cámara según el estado del sistema
+ * @param state Estado actual de la cámara desde error_control
+ */
+void camera_adjust_quality(camera_state_t state);
 
 #endif
