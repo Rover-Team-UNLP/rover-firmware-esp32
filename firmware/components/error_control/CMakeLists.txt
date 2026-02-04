@@ -7,5 +7,5 @@ idf_component_register(
         freertos 
         esp_common 
         esp_timer
-        esp_log
+        log
 )
