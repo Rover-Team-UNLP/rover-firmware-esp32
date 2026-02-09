@@ -4,13 +4,11 @@ idf_component_register(
     INCLUDE_DIRS 
         "include"
         "../../include"
-    PRIV_INCLUDE_DIRS
-        "${CMAKE_SOURCE_DIR}/.pio/libdeps/esp32cam/esp32-camera/driver/include"
-        "${CMAKE_SOURCE_DIR}/.pio/libdeps/esp32cam/esp32-camera/conversions/include"
     REQUIRES
         esp_http_client
         esp_timer
         freertos
         driver
         error_control
+        esp32-camera
 )

@@ -9,6 +9,9 @@
 
 static const char *TAG = "CAM_TASK";
 
+// URL del servidor para streaming
+const char *CAM_SERVER_URL = "http://10.0.142.92:8080/video/upload";
+
 static TaskHandle_t cam_task_handle = NULL;
 static camera_state_t last_camera_state = CAM_STATE_NORMAL;
 
@@ -95,10 +98,11 @@ esp_err_t start_camera(void)
         .ledc_channel = LEDC_CHANNEL_0,
 
         .pixel_format = PIXFORMAT_JPEG,
-        .frame_size = FRAMESIZE_QVGA, // 320x240 para empezar
-        .jpeg_quality = 10,
-        .fb_count = 2 // 2 buffers para evitar bloqueos
-    };
+        .frame_size = CAM_NORMAL_FRAMESIZE,
+        .jpeg_quality = CAM_JPEG_QUALITY_INIT,
+        .fb_count = 1,
+        .fb_location = CAMERA_FB_IN_DRAM, // Usar memoria interna
+        .grab_mode = CAMERA_GRAB_WHEN_EMPTY};
 
     esp_err_t error = esp_camera_init(&config);
 
@@ -108,15 +112,7 @@ esp_err_t start_camera(void)
 void camera_task(void *pvParameters)
 {
     cam_task_handle = xTaskGetCurrentTaskHandle();
-    uint32_t notify_value;
     camera_state_t current_state;
-
-    esp_http_client_config_t config = {
-        .url = url, // Variable global o definida en header
-        .method = HTTP_METHOD_POST,
-        .event_handler = http_client_event_handler,
-        .timeout_ms = 5000,
-        .transport_type = HTTP_TRANSPORT_OVER_TCP};
 
     ESP_LOGI(TAG, "Camera task started");
 
@@ -128,7 +124,6 @@ void camera_task(void *pvParameters)
         if (current_state == CAM_STATE_SUSPENDED)
         {
             ESP_LOGW(TAG, "Camera suspended - waiting for system to recover...");
-            // Esperar hasta que el estado cambie
             while (error_control_get_camera_state() == CAM_STATE_SUSPENDED)
             {
                 vTaskDelay(pdMS_TO_TICKS(1000));
@@ -140,91 +135,86 @@ void camera_task(void *pvParameters)
         // Ajustar calidad según el estado
         camera_adjust_quality(current_state);
 
-        esp_http_client_handle_t client = esp_http_client_init(&config);
-        esp_http_client_set_header(client, "Content-Type", "multipart/x-mixed-replace; boundary=frame");
-
-        esp_err_t err = esp_http_client_open(client, -1);
-
-        if (err != ESP_OK)
+        // Capturar frame
+        camera_fb_t *fb = esp_camera_fb_get();
+        if (!fb)
         {
-            Error_inf error_msg = {.id = err, .source = CAMERA, .response_type = 0, .general_errors = HTTP_CLIENT_NO_OPEN};
+            ESP_LOGW(TAG, "Failed to capture frame");
+            Error_inf error_msg = {.id = 2, .source = CAMERA, .response_type = 0, .general_errors = FRAME_NULL};
             xQueueSend(to_error_queue, &error_msg, 0);
-
-            esp_http_client_cleanup(client);
-            vTaskDelay(pdMS_TO_TICKS(5000));
+            vTaskDelay(pdMS_TO_TICKS(100));
             continue;
         }
 
-        BaseType_t notify_recv = xTaskNotifyWait(0, 0, &notify_value, pdMS_TO_TICKS(5000));
-        bool connection_establish = (notify_recv == pdTRUE && notify_value == 1);
+        // Construir el body multipart para un solo frame
+        const char *boundary = "frame";
+        char part_header[256];
+        int header_len = snprintf(part_header, sizeof(part_header),
+                                  "--%s\r\n"
+                                  "Content-Type: image/jpeg\r\n"
+                                  "Content-Length: %zu\r\n\r\n",
+                                  boundary, fb->len);
 
-        while (connection_establish)
+        char part_footer[32];
+        int footer_len = snprintf(part_footer, sizeof(part_footer), "\r\n--%s--\r\n", boundary);
+
+        int total_len = header_len + fb->len + footer_len;
+
+        // Configurar cliente HTTP
+        esp_http_client_config_t config = {
+            .url = CAM_SERVER_URL,
+            .method = HTTP_METHOD_POST,
+            .timeout_ms = 5000,
+        };
+
+        esp_http_client_handle_t client = esp_http_client_init(&config);
+        esp_http_client_set_header(client, "Content-Type", "multipart/x-mixed-replace; boundary=frame");
+
+        // Abrir con Content-Length específico
+        esp_err_t err = esp_http_client_open(client, total_len);
+
+        if (err == ESP_OK)
         {
-            // Verificar estado de la cámara en cada iteración
-            current_state = error_control_get_camera_state();
-
-            // Si se suspende, salir del loop de streaming
-            if (current_state == CAM_STATE_SUSPENDED)
+            // Enviar: part_header + jpeg + part_footer
+            int written = esp_http_client_write(client, part_header, header_len);
+            if (written >= 0)
             {
-                ESP_LOGW(TAG, "Camera suspended during streaming - closing connection");
-                connection_establish = false;
-                break;
+                written = esp_http_client_write(client, (const char *)fb->buf, fb->len);
+            }
+            if (written >= 0)
+            {
+                written = esp_http_client_write(client, part_footer, footer_len);
             }
 
-            // Ajustar calidad si cambió el estado
-            camera_adjust_quality(current_state);
-
-            uint32_t ulStatus = 0;
-            if (xTaskNotifyWait(0, 0, &ulStatus, 0) == pdTRUE)
-            {
-                if (ulStatus == 0)
-                {
-                    Error_inf error_msg = {.id = err, .source = CAMERA, .response_type = 0, .general_errors = UL_STATUS_FAIL};
-                    xQueueSend(to_error_queue, &error_msg, 0);
-                    connection_establish = false;
-                    break;
-                }
-            }
-
-            camera_fb_t *fb = esp_camera_fb_get();
-            if (!fb)
-            {
-                Error_inf error_msg = {.id = 2, .source = CAMERA, .response_type = 0, .general_errors = FRAME_NULL};
-                xQueueSend(to_error_queue, &error_msg, 0);
-                break;
-            }
-
-            char part_header[128];
-            int header_len = snprintf(part_header, sizeof(part_header),
-                                      "--frame\r\n"
-                                      "Content-Type: image/jpeg\r\n"
-                                      "Content-Length: %u\r\n\r\n",
-                                      fb->len);
-
-            bool write_err = false;
-            // Secuencia de envío: Header -> Payload -> Footer
-            if (esp_http_client_write(client, part_header, header_len) < 0)
-                write_err = true;
-            if (!write_err && esp_http_client_write(client, (const char *)fb->buf, fb->len) < 0)
-                write_err = true;
-            if (!write_err && esp_http_client_write(client, "\r\n", 2) < 0)
-                write_err = true;
-
-            esp_camera_fb_return(fb);
-
-            if (write_err)
+            if (written < 0)
             {
                 Error_inf error_msg = {.id = 3, .source = CAMERA, .response_type = 0, .general_errors = WRITE_ERROR};
                 xQueueSend(to_error_queue, &error_msg, 0);
-                connection_establish = false;
             }
-
-            // Delay dinámico según el estado de la cámara
-            vTaskDelay(pdMS_TO_TICKS(get_frame_delay_ms(current_state)));
+            else
+            {
+                // Leer respuesta
+                esp_http_client_fetch_headers(client);
+                int status = esp_http_client_get_status_code(client);
+                if (status != 200 && status != 201 && status != 204)
+                {
+                    ESP_LOGW(TAG, "Server returned status: %d", status);
+                }
+            }
+        }
+        else
+        {
+            ESP_LOGE(TAG, "Failed to open HTTP: %s", esp_err_to_name(err));
+            Error_inf error_msg = {.id = err, .source = CAMERA, .response_type = 0, .general_errors = HTTP_CLIENT_NO_OPEN};
+            xQueueSend(to_error_queue, &error_msg, 0);
         }
 
+        esp_http_client_close(client);
         esp_http_client_cleanup(client);
-        vTaskDelay(pdMS_TO_TICKS(2000));
+        esp_camera_fb_return(fb);
+
+        // Delay según estado
+        vTaskDelay(pdMS_TO_TICKS(get_frame_delay_ms(current_state)));
     }
 }
 

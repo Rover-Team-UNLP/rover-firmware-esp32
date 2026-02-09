@@ -152,14 +152,12 @@ static void evaluate_camera_state(void)
         if (cmd_diff >= CMD_DIFF_THRESHOLD_SUSPEND)
         {
             new_state = CAM_STATE_SUSPENDED;
-            ESP_LOGW(TAG, "Camera SUSPENDED: cmd_diff=%ld (threshold=%d)",
-                     cmd_diff, CMD_DIFF_THRESHOLD_SUSPEND);
+            ESP_LOGW(TAG, "Camera SUSPENDED: cmd_diff=%ld (threshold=%d)", cmd_diff, CMD_DIFF_THRESHOLD_SUSPEND);
         }
         else if (cmd_diff >= CMD_DIFF_THRESHOLD_DEGRADE)
         {
             new_state = CAM_STATE_DEGRADED;
-            ESP_LOGW(TAG, "Camera DEGRADED: cmd_diff=%ld (threshold=%d)",
-                     cmd_diff, CMD_DIFF_THRESHOLD_DEGRADE);
+            ESP_LOGW(TAG, "Camera DEGRADED: cmd_diff=%ld (threshold=%d)", cmd_diff, CMD_DIFF_THRESHOLD_DEGRADE);
         }
         break;
 
@@ -167,12 +165,12 @@ static void evaluate_camera_state(void)
         if (cmd_diff >= CMD_DIFF_THRESHOLD_SUSPEND)
         {
             new_state = CAM_STATE_SUSPENDED;
-            ESP_LOGW(TAG, "Camera SUSPENDED from degraded: cmd_diff=%ld", cmd_diff);
+            ESP_LOGW(TAG, "Camera DEGRADED->SUSPENDED: cmd_diff=%ld", cmd_diff);
         }
         else if (cmd_diff <= CMD_DIFF_THRESHOLD_RESTORE)
         {
             new_state = CAM_STATE_NORMAL;
-            ESP_LOGI(TAG, "Camera RESTORED to normal: cmd_diff=%ld", cmd_diff);
+            ESP_LOGI(TAG, "Camera DEGRADED->NORMAL: cmd_diff=%ld (restored)", cmd_diff);
         }
         break;
 
@@ -180,7 +178,7 @@ static void evaluate_camera_state(void)
         if (cmd_diff <= CMD_DIFF_THRESHOLD_RESTORE)
         {
             new_state = CAM_STATE_DEGRADED; // Primero a degraded, luego a normal
-            ESP_LOGI(TAG, "Camera RESUMED to degraded: cmd_diff=%ld", cmd_diff);
+            ESP_LOGI(TAG, "Camera SUSPENDED->DEGRADED: cmd_diff=%ld (recovering)", cmd_diff);
         }
         break;
     }
@@ -241,7 +239,7 @@ static void process_error(const Error_inf *error)
         {
             if (xQueueSend(from_error_queue, &web_msg, pdMS_TO_TICKS(100)) != pdTRUE)
             {
-                ESP_LOGW(TAG, "Failed to send error to web queue");
+                ESP_LOGW(TAG, "No se pudo enviar error a from_error_queue (cola llena o timeout)");
             }
         }
     }
@@ -256,15 +254,13 @@ static void process_error(const Error_inf *error)
         break;
 
     case WEBSOCKET_DISCONNECTED:
-        // Podríamos suspender la cámara inmediatamente
-        ESP_LOGW(TAG, "WebSocket disconnected - considering camera suspension");
+        ESP_LOGW(TAG, "WebSocket desconectado - cámara puede seguir activa");
         break;
 
     case CAMERA_INIT_FAIL:
     case WEBSOCKET_INIT_FAIL:
     case WEBSOCKET_START_FAIL:
-        // Errores críticos - solo log, ya manejados en el módulo origen
-        ESP_LOGE(TAG, "CRITICAL ERROR: System may not function correctly");
+        ESP_LOGE(TAG, "Error crítico registrado: %s (id=%u)", error_name, error->id);
         break;
 
     default:
@@ -279,7 +275,7 @@ static void error_control_task(void *pvParameters)
 {
     Error_inf received_error;
 
-    ESP_LOGI(TAG, "Error control task started");
+    ESP_LOGI(TAG, "Tarea error_control iniciada, esperando mensajes en to_error_queue");
 
     while (1)
     {
@@ -295,18 +291,18 @@ static void error_control_task(void *pvParameters)
 
 esp_err_t error_control_init(void)
 {
-    ESP_LOGI(TAG, "Initializing error control module");
+    ESP_LOGI(TAG, "Inicializando módulo de control de errores");
 
     // Verificar que las colas existan
     if (to_error_queue == NULL)
     {
-        ESP_LOGE(TAG, "to_error_queue is NULL - cannot start error control");
+        ESP_LOGE(TAG, "error_control_init: to_error_queue es NULL (debe llamarse después de init_queues)");
         return ESP_FAIL;
     }
 
     if (from_error_queue == NULL)
     {
-        ESP_LOGW(TAG, "from_error_queue is NULL - web notifications disabled");
+        ESP_LOGW(TAG, "error_control_init: from_error_queue es NULL, errores no se enviarán por WebSocket");
     }
 
     // Crear la tarea de control de errores
@@ -320,11 +316,11 @@ esp_err_t error_control_init(void)
 
     if (result != pdPASS)
     {
-        ESP_LOGE(TAG, "Failed to create error control task");
+        ESP_LOGE(TAG, "error_control_init: xTaskCreate error_ctrl FAIL");
         return ESP_FAIL;
     }
 
-    ESP_LOGI(TAG, "Error control module initialized successfully");
+    ESP_LOGI(TAG, "Módulo de control de errores listo");
     return ESP_OK;
 }
 
@@ -334,7 +330,7 @@ void error_control_stop(void)
     {
         vTaskDelete(error_task_handle);
         error_task_handle = NULL;
-        ESP_LOGI(TAG, "Error control task stopped");
+        ESP_LOGI(TAG, "Control de errores detenido");
     }
 }
 
@@ -359,7 +355,7 @@ void error_control_set_camera_state(camera_state_t state)
 {
     if (state != current_camera_state)
     {
-        ESP_LOGI(TAG, "Camera state manually changed: %d -> %d", current_camera_state, state);
+        ESP_LOGI(TAG, "Estado cámara cambiado manualmente a %d", (int)state);
         current_camera_state = state;
     }
 }

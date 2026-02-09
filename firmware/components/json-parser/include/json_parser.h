@@ -14,10 +14,8 @@
 #include "communication.h"
 
 #define CMD_BUFFER_LEN 10
-#define CMD_PARAMS_LEN 10
 
 // We could define macros with the limits of the params. x_velocity_max, etc.
-
 
 typedef enum
 {
@@ -27,8 +25,6 @@ typedef enum
     STATUS_BUFFER_CMD_NULL,
     STATUS_NOT_VALID_ID
 } json_parser_status_t;
-
-
 
 typedef struct
 {
@@ -60,7 +56,7 @@ json_parser_status_t modify_cmd(uint16_t id, data_cmd *command);
  * @param data (char *) a string with the json.
  * @return a status code.
  */
-json_parser_status_t parse_json(char *data, uint16_t * ret_id);
+json_parser_status_t parse_json(char *data, uint16_t *ret_id);
 
 json_parser_status_t parse_cmd(data_cmd cmd, char *uart_string);
 

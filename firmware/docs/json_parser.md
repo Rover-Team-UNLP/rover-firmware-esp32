@@ -2,7 +2,7 @@
 
 ## Descripción
 
-Módulo para parsear comandos JSON y manejar un buffer circular de comandos para el rover ESP32-CAM. Permite recibir, almacenar, recuperar y modificar comandos de movimiento con parámetros.
+Módulo para parsear comandos JSON y manejar un buffer circular de comandos para el rover ESP32-CAM. Permite recibir, almacenar, recuperar y modificar comandos de movimiento con intensidad.
 
 ## Interfaz
 
@@ -21,8 +21,7 @@ typedef enum {
 typedef struct {
     uint16_t id;                        // ID único del comando
     rover_cmd_type_t cmd;               // Tipo de comando
-    double params[CMD_PARAMS_LEN];      // Parámetros (máximo 10)
-    uint8_t total_params;               // Cantidad de parámetros
+    uint8_t intensity;                  // Intensidad (0-255)
 } data_cmd;
 
 // Buffer circular de comandos
@@ -37,13 +36,16 @@ typedef struct {
 
 ```c
 // Parsear JSON y almacenar comando
-json_parser_status_t parse_json(char *data, char *uart_string);
+json_parser_status_t parse_json(char *data, uint16_t *ret_id);
 
 // Recuperar comando por ID
 json_parser_status_t take_cmd(uint16_t id, data_cmd *command);
 
 // Modificar comando existente
 json_parser_status_t modify_cmd(uint16_t id, data_cmd *command);
+
+// Generar string UART desde comando
+json_parser_status_t parse_cmd(data_cmd cmd, char *uart_string);
 ```
 
 ## Funcionamiento
@@ -55,16 +57,16 @@ Acepta JSONs con formato:
 {
     "id": 123,
     "cmd": 0,
-    "params": [1.5, 2.0, 3.5]
+    "intensity": 150
 }
 ```
 
 ### 2. Generación de string UART
 
-Convierte el comando a string para transmisión:
+Convierte el comando a string para transmisión con formato `S:CMD:INTENSITY:ID:E`:
 ```
-Input:  {"id": 5, "cmd": 1, "params": [1.5, 2.0]}
-Output: "5-1-1.50-2.00\n"
+Input:  {"id": 5, "cmd": 1, "intensity": 200}
+Output: "S:1:200:5:E"
 ```
 
 ### 3. Buffer circular

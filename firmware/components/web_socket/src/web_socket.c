@@ -8,11 +8,12 @@
 #include "web_socket.h"
 #include "esp_crt_bundle.h"
 #include "error_control.h"
+#include "esp_log.h"
 
 void websocket_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data);
 static void send_error_task(void *pvParameters);
 
-static const char *WEBSOCKET_URI = "ws://192.168.0.24:8080/ws/esp"; // Just for test, it should be another one.
+static const char *WEBSOCKET_URI = "ws://10.0.142.92:8080/ws/esp"; // Just for test, it should be another one.
 static const int STACK_SIZE = 4096;
 
 static esp_websocket_client_handle_t client_handler = NULL;
@@ -84,7 +85,12 @@ void websocket_event_handler(void *handler_args, esp_event_base_t base, int32_t 
     switch (event_id)
     {
     case WEBSOCKET_EVENT_DATA:
-        if (data->op_code == WS_TRANSPORT_OPCODES_TEXT && data->data_len > 0)
+        // Ignorar PING/PONG y frames binarios - solo procesar TEXT
+        if (data->op_code != WS_TRANSPORT_OPCODES_TEXT)
+        {
+            return; // Silenciosamente ignorar
+        }
+        if (data->data_len > 0)
         {
             char *buffer = malloc(data->data_len + 1);
             if (buffer == NULL)
@@ -113,6 +119,7 @@ void websocket_event_handler(void *handler_args, esp_event_base_t base, int32_t 
                 free(buffer);
                 return;
             }
+            ESP_LOGI("WS", "Comando recibido por WebSocket: CMD=%u, INTENSITY=%u, ID=%u", new_cmd.cmd, new_cmd.intensity, new_cmd.id);
             if (xQueueSend(cmd_queue, &new_cmd, pdMS_TO_TICKS(100)) != pdTRUE)
             {
                 websocket_handler_error.general_errors = SEND_CMD_QUEUE_ERROR;
@@ -123,12 +130,6 @@ void websocket_event_handler(void *handler_args, esp_event_base_t base, int32_t 
             // Notificar al control de errores que se recibió un comando
             error_control_cmd_received();
             free(buffer);
-        }
-        else
-        {
-            websocket_handler_error.general_errors = OP_CODE_ERROR;
-            xQueueSend(to_error_queue, &websocket_handler_error, 0);
-            return;
         }
         break;
     case WEBSOCKET_EVENT_DISCONNECTED:

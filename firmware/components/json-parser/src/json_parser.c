@@ -16,7 +16,7 @@ static json_parser_status_t push(const data_cmd *cmd);
 
 cmd_buffer_t cmd_buffer = {0};
 
-json_parser_status_t parse_json(char *data, uint16_t * ret_id)
+json_parser_status_t parse_json(char *data, uint16_t *ret_id)
 {
     data_cmd new_command = {0};
     cJSON *json = cJSON_Parse(data);
@@ -41,30 +41,16 @@ json_parser_status_t parse_json(char *data, uint16_t * ret_id)
 
     new_command.id = id->valueint;
     *ret_id = new_command.id;
-    cJSON *params = cJSON_GetObjectItem(json, "params");
-    if (!(cJSON_IsArray(params)))
-    {
-        cJSON_Delete(json);
-        return STATUS_PARSE_ERROR;
-    }
 
-    int params_len = cJSON_GetArraySize(params);
-    if (params_len > CMD_PARAMS_LEN)
+    // Parsear intensity (valor 0-255)
+    cJSON *intensity = cJSON_GetObjectItem(json, "intensity");
+    if (!(cJSON_IsNumber(intensity)))
     {
         cJSON_Delete(json);
         return STATUS_PARSE_ERROR;
     }
-    for (int i = 0; i < params_len; i++)
-    {
-        cJSON *item = cJSON_GetArrayItem(params, i);
-        if (!(cJSON_IsNumber(item)))
-        {
-            cJSON_Delete(json);
-            return STATUS_PARSE_ERROR;
-        }
-        new_command.params[i] = item->valuedouble;
-    }
-    new_command.total_params = params_len;
+    new_command.intensity = (uint8_t)intensity->valueint;
+
     push(&new_command);
     cJSON_Delete(json);
     return STATUS_OK;
@@ -72,25 +58,11 @@ json_parser_status_t parse_json(char *data, uint16_t * ret_id)
 
 json_parser_status_t parse_cmd(data_cmd cmd, char *uart_string)
 {
-    uint8_t params_len = cmd.total_params;
-    snprintf(uart_string, 256, "%u-%d", cmd.id, cmd.cmd);
-    if (params_len == 0)
-    {
-        snprintf(uart_string + 4, 252, "\n");
-    }
-    for (int i = 0; i < params_len; i++)
-    {
-        size_t current_len = strlen(uart_string);
-        size_t remaining = 256 - current_len;
-        if (i == params_len - 1)
-        {
-            snprintf(uart_string + current_len, remaining, "-%.2f\n", cmd.params[i]);
-        }
-        else
-        {
-            snprintf(uart_string + current_len, remaining, "-%.2f", cmd.params[i]);
-        }
-    }
+    // Formato: S:CMD:INTENSITY:ID:E
+    snprintf(uart_string, CMD_LEN, "S:%u:%u:%u:E",
+             (unsigned int)cmd.cmd,
+             (unsigned int)cmd.intensity,
+             (unsigned int)cmd.id);
     return STATUS_OK;
 }
 

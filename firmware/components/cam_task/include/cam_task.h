@@ -32,12 +32,15 @@
 #define SIOC_GPIO_NUM 27
 #define PWDN_GPIO_NUM 32
 
-const char *url = "url_for_server";
+// URL del servidor para streaming (definida en cam_task.c)
+extern const char *CAM_SERVER_URL;
 
 /* ============== CAMERA QUALITY SETTINGS ============== */
-// Normal mode: QVGA (320x240), quality 10, 25 FPS (40ms delay)
+// Calidad inicial al abrir la cámara (debe coincidir con modo normal para evitar salto visual)
+#define CAM_JPEG_QUALITY_INIT 8
+// Normal mode: QVGA (320x240), quality 8 (mejor imagen), ~25 FPS (40ms delay) - sin subir carga
 #define CAM_NORMAL_FRAMESIZE FRAMESIZE_QVGA
-#define CAM_NORMAL_QUALITY 10
+#define CAM_NORMAL_QUALITY 8
 #define CAM_NORMAL_DELAY_MS 40
 
 // Degraded mode: QQVGA (160x120), quality 15, 10 FPS (100ms delay)

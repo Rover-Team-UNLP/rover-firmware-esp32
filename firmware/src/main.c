@@ -11,6 +11,7 @@
 #include "freertos/queue.h"
 #include "freertos/event_groups.h"
 #include "esp_log.h"
+#include "esp_rom_uart.h"
 #include "nvs_flash.h"
 
 #include "app_globals.h"
@@ -18,6 +19,8 @@
 #include "wifi_manager.h"
 #include "web_socket.h"
 #include "error_control.h"
+#include "uart_task.h"
+#include "cam_task.h"
 
 static const char *TAG = "MAIN";
 
@@ -51,34 +54,7 @@ static const char *cmd_type_to_string(rover_cmd_type_t cmd)
  */
 static void cmd_logger_task(void *pvParameters)
 {
-    data_cmd received_cmd;
-
-    ESP_LOGI(TAG, "Command logger task started - waiting for commands...");
-
-    while (1)
-    {
-        // Esperar indefinidamente por un comando en la cola
-        if (xQueueReceive(cmd_queue, &received_cmd, portMAX_DELAY) == pdTRUE)
-        {
-            ESP_LOGI(TAG, "========== COMMAND RECEIVED ==========");
-            ESP_LOGI(TAG, "  ID: %u", received_cmd.id);
-            ESP_LOGI(TAG, "  Command Type: %s (%d)",
-                     cmd_type_to_string(received_cmd.cmd),
-                     received_cmd.cmd);
-            ESP_LOGI(TAG, "  Total Params: %u", received_cmd.total_params);
-
-            // Mostrar los parámetros
-            if (received_cmd.total_params > 0)
-            {
-                ESP_LOGI(TAG, "  Parameters:");
-                for (uint8_t i = 0; i < received_cmd.total_params && i < CMD_PARAMS_LEN; i++)
-                {
-                    ESP_LOGI(TAG, "    [%d]: %.4f", i, received_cmd.params[i]);
-                }
-            }
-            ESP_LOGI(TAG, "======================================");
-        }
-    }
+    // Tarea eliminada: no se loguean comandos por UART0
 }
 
 /**
@@ -89,67 +65,68 @@ static esp_err_t init_queues(void)
     cmd_queue = xQueueCreate(10, sizeof(data_cmd));
     if (cmd_queue == NULL)
     {
-        ESP_LOGE(TAG, "Failed to create cmd_queue");
+        ESP_LOGE(TAG, "init_queues: cmd_queue create FAIL");
         return ESP_FAIL;
     }
 
     to_error_queue = xQueueCreate(10, sizeof(Error_inf));
     if (to_error_queue == NULL)
     {
-        ESP_LOGE(TAG, "Failed to create to_error_queue");
+        ESP_LOGE(TAG, "init_queues: to_error_queue create FAIL");
         return ESP_FAIL;
     }
 
     from_error_queue = xQueueCreate(10, sizeof(error_web_msg_t));
     if (from_error_queue == NULL)
     {
-        ESP_LOGE(TAG, "Failed to create from_error_queue");
+        ESP_LOGE(TAG, "init_queues: from_error_queue create FAIL");
         return ESP_FAIL;
     }
 
-    ESP_LOGI(TAG, "All queues initialized successfully");
     return ESP_OK;
 }
 
 void app_main(void)
 {
-    ESP_LOGI(TAG, "========================================");
-    ESP_LOGI(TAG, "   ESP32 Rover Firmware Starting...");
-    ESP_LOGI(TAG, "========================================");
+    // Logs por UART0 para fase de integración (nivel INFO y superior)
+    esp_log_level_set("*", ESP_LOG_INFO);
+
+    ESP_LOGI(TAG, "========== Inicio firmware Rover ==========");
 
     // 1. Inicializar NVS (necesario para WiFi)
     esp_err_t ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND)
     {
-        ESP_LOGW(TAG, "NVS partition was truncated, erasing...");
+        ESP_LOGW(TAG, "NVS: borrando y reinicializando (no free pages o nueva versión)");
         ESP_ERROR_CHECK(nvs_flash_erase());
         ret = nvs_flash_init();
     }
     ESP_ERROR_CHECK(ret);
-    ESP_LOGI(TAG, "NVS Flash initialized");
+    ESP_LOGI(TAG, "NVS init OK");
 
     // 2. Inicializar las colas globales
     ret = init_queues();
     if (ret != ESP_OK)
     {
-        ESP_LOGE(TAG, "Failed to initialize queues, aborting...");
+        ESP_LOGE(TAG, "init_queues FAIL: no se pudieron crear las colas");
         return;
     }
+    ESP_LOGI(TAG, "Colas globales creadas OK (cmd_queue, to_error_queue, from_error_queue)");
 
     // 3. Iniciar el módulo de control de errores
-    ESP_LOGI(TAG, "Starting error control module...");
     ret = error_control_init();
     if (ret != ESP_OK)
     {
-        ESP_LOGE(TAG, "Failed to initialize error control, continuing anyway...");
+        ESP_LOGE(TAG, "error_control_init FAIL: no se pudo crear la tarea de control de errores");
+        return;
     }
+    ESP_LOGI(TAG, "Control de errores init OK");
 
     // 4. Iniciar el módulo de WiFi Provisioning
-    ESP_LOGI(TAG, "Starting WiFi provisioning...");
     wifi_provisioning_init();
+    ESP_LOGI(TAG, "WiFi provisioning iniciado, esperando conexión...");
 
     // 5. Esperar a que el WiFi se conecte
-    ESP_LOGI(TAG, "Waiting for WiFi connection...");
     EventBits_t bits = xEventGroupWaitBits(
         wifi_event_group,
         WIFI_CONNECTED_BIT | WIFI_FAIL_BIT,
@@ -159,39 +136,44 @@ void app_main(void)
 
     if (bits & WIFI_CONNECTED_BIT)
     {
-        ESP_LOGI(TAG, "========================================");
-        ESP_LOGI(TAG, "   WiFi Connected Successfully!");
-        ESP_LOGI(TAG, "========================================");
+        ESP_LOGI(TAG, "WiFi conectado");
 
         // 6. Iniciar el WebSocket
-        ESP_LOGI(TAG, "Starting WebSocket client...");
         ret = websocket_start();
         if (ret == ESP_OK)
         {
-            ESP_LOGI(TAG, "WebSocket client started successfully");
-
-            // 7. Crear tarea para loggear comandos recibidos
-            xTaskCreate(
-                cmd_logger_task,
-                "cmd_logger",
-                4096,
-                NULL,
-                5,
-                NULL);
-            ESP_LOGI(TAG, "Command logger task created");
-            ESP_LOGI(TAG, "System ready - waiting for WebSocket commands...");
+            ESP_LOGI(TAG, "WebSocket start OK");
         }
         else
         {
-            ESP_LOGE(TAG, "Failed to start WebSocket client: %s", esp_err_to_name(ret));
+            ESP_LOGE(TAG, "WebSocket start FAIL: %s", esp_err_to_name(ret));
         }
+
+        // 7. Iniciar UART (UART2, pines 12/13, comunicación CIAA)
+        init_uart();
+        xTaskCreate(task_uart, "uart_task", 4096, NULL, 5, NULL);
+        ESP_LOGI(TAG, "UART2 init OK, tarea uart_task creada");
+
+        // 8. Iniciar Cámara
+        ret = start_camera();
+        if (ret == ESP_OK)
+        {
+            xTaskCreate(camera_task, "camera_task", 4096, NULL, 5, NULL);
+            ESP_LOGI(TAG, "Cámara init OK, tarea camera_task creada");
+        }
+        else
+        {
+            ESP_LOGE(TAG, "start_camera FAIL: %s", esp_err_to_name(ret));
+        }
+
+        ESP_LOGI(TAG, "========== Sistema listo ==========");
     }
     else if (bits & WIFI_FAIL_BIT)
     {
-        ESP_LOGW(TAG, "========================================");
-        ESP_LOGW(TAG, "   WiFi Connection Failed!");
-        ESP_LOGW(TAG, "   AP Mode Active - Connect to 'Rover_Setup'");
-        ESP_LOGW(TAG, "   and configure WiFi credentials.");
-        ESP_LOGW(TAG, "========================================");
+        ESP_LOGE(TAG, "WiFi FAIL: no se pudo conectar. Revisar credenciales y red.");
+    }
+    else
+    {
+        ESP_LOGE(TAG, "WiFi: evento inesperado (bits=0x%lx)", (unsigned long)bits);
     }
 }
