@@ -1,3 +1,10 @@
+/* ======================================
+ * File: wifi_manager.c
+ * Description: WiFi provisioning (STA/AP, DNS captive portal, HTTP config)
+ * Author/s: @JuanCruzFerreiraM
+ * Last-update: 2026-02-19
+ * ====================================== */
+
 #include "wifi_manager.h"
 #include "esp_wifi.h"
 #include "esp_event.h"

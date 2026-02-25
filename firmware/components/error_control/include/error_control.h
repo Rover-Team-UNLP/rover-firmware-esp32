@@ -1,9 +1,9 @@
 /* ======================================
-- File: error_control.h
-- Description: Error control module for centralized error handling and camera degradation
-- Author/s: @JuanCruzFerreiraM
-- Last-update: 2026-02-03
-- ====================================== */
+ * File: error_control.h
+ * Description: Centralized error handling and camera degradation
+ * Author/s: @JuanCruzFerreiraM
+ * Last-update: 2026-02-19
+ * ====================================== */
 
 #ifndef ERROR_CONTROL_H
 #define ERROR_CONTROL_H
@@ -14,74 +14,66 @@
 #include "esp_err.h"
 #include "stdint.h"
 
-/* ============== SEVERITY LEVELS ============== */
 typedef enum
 {
-    SEVERITY_DEBUG = 0, // Solo log interno, errores esperados/frecuentes
-    SEVERITY_INFO,      // Log + opcional notificar
-    SEVERITY_WARNING,   // Log + notificar web
-    SEVERITY_ERROR,     // Log + notificar + posible acción
-    SEVERITY_CRITICAL   // Log + notificar + detener operación
+    SEVERITY_DEBUG = 0,
+    SEVERITY_INFO,
+    SEVERITY_WARNING,
+    SEVERITY_ERROR,
+    SEVERITY_CRITICAL
 } error_severity_t;
 
-/* ============== CAMERA STATES ============== */
 typedef enum
 {
-    CAM_STATE_NORMAL = 0, // Funcionamiento normal
-    CAM_STATE_DEGRADED,   // Calidad/FPS reducido
-    CAM_STATE_SUSPENDED   // Cámara suspendida
+    CAM_STATE_NORMAL = 0,
+    CAM_STATE_DEGRADED,
+    CAM_STATE_SUSPENDED
 } camera_state_t;
 
-/* ============== THRESHOLDS ============== */
-#define CMD_DIFF_THRESHOLD_DEGRADE 5  // Diferencia para degradar cámara
-#define CMD_DIFF_THRESHOLD_SUSPEND 10 // Diferencia para suspender cámara
-#define CMD_DIFF_THRESHOLD_RESTORE 2  // Diferencia para restaurar cámara
+#define CMD_DIFF_THRESHOLD_DEGRADE 6
+#define CMD_DIFF_THRESHOLD_SUSPEND 10
+#define CMD_DIFF_THRESHOLD_RESTORE 2
 
-/* ============== ERROR MESSAGE FOR WEB ============== */
 #define ERROR_JSON_MAX_LEN 256
 
-/**
- * @brief Estructura para enviar errores a la tarea de WebSocket
- */
+/** Message sent to WebSocket task for error display. */
 typedef struct
 {
     char json_message[ERROR_JSON_MAX_LEN];
     uint16_t len;
 } error_web_msg_t;
 
-/* ============== PUBLIC API ============== */
-
 /**
- * @brief Inicializa el módulo de control de errores
- * @return ESP_OK si la inicialización fue exitosa
+ * @brief Initialize the error control module.
+ * @return ESP_OK on success.
  */
 esp_err_t error_control_init(void);
 
 /**
- * @brief Detiene el módulo de control de errores
+ * @brief Stop the error control task.
  */
 void error_control_stop(void);
 
 /**
- * @brief Registra un comando recibido (para tracking de degradación)
+ * @brief Register that a command was received (for degradation tracking).
  */
 void error_control_cmd_received(void);
 
 /**
- * @brief Registra un comando enviado exitosamente (para tracking de degradación)
+ * @brief Register that a command was sent successfully (for degradation tracking).
  */
 void error_control_cmd_sent_ok(void);
 
 /**
- * @brief Obtiene el estado actual de la cámara
- * @return Estado actual de la cámara
+ * @brief Get current camera state (NORMAL, DEGRADED, SUSPENDED).
+ * @return Current camera state.
  */
 camera_state_t error_control_get_camera_state(void);
 
 /**
- * @brief Fuerza un estado de cámara (para testing o control manual)
- * @param state Nuevo estado de la cámara
+ * @brief Set camera state (for testing or manual control).
+ * @param state New camera state.
  */
 void error_control_set_camera_state(camera_state_t state);
 
-#endif /* ERROR_CONTROL_H */
+#endif

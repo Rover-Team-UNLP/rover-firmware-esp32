@@ -1,9 +1,9 @@
 /* ======================================
-- File: uart_task.h
-- Description: Header of the uart task.
-- Author/s: @JuanCruzFerreiraM
-- Last-update: 2025-10-20
-- ====================================== */
+ * File: uart_task.h
+ * Description: UART task for ESP32-CIAA communication
+ * Author/s: @JuanCruzFerreiraM
+ * Last-update: 2026-02-19
+ * ====================================== */
 
 #ifndef UART_TASK
 #define UART_TASK
@@ -33,10 +33,19 @@
 #define QUEUE_SIZE 10
 
 /**
- * @brief This function initialize the UART to a series of parameters define in the macros.
+ * @brief Initialize UART with parameters from this header (UART_NUM_2, 115200, etc.).
  */
 void init_uart(void);
 
-void task_uart(void *);
+/**
+ * @brief UART task entry point (reads responses, sends commands from queue).
+ * @param pvParameters Unused.
+ */
+void task_uart(void *pvParameters);
+
+/**
+ * @brief Send STOP command (S:4:0:0:E) to CIAA over UART (e.g. on WebSocket disconnect).
+ */
+void uart_send_stop_to_ciaa(void);
 
 #endif

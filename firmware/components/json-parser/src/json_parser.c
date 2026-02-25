@@ -1,17 +1,12 @@
 /* ======================================
-- File: json_parser.c
-- Description: JSON parser and command buffer handler.
-- Author/s: @JuanCruzFerreiraM
-- Last-update: 2025-10-01
-- ====================================== */
+ * File: json_parser.c
+ * Description: JSON command parser and circular command buffer
+ * Author/s: @JuanCruzFerreiraM
+ * Last-update: 2026-02-19
+ * ====================================== */
 #include <stdio.h>
 #include "json_parser.h"
 
-/**
- * @brief Push a cmd to the cmd_buffer using a secuencial id logic.
- * @param cmd (data_cmd*) the command to insert in the buffer.
- * @return a status code.
- */
 static json_parser_status_t push(const data_cmd *cmd);
 
 cmd_buffer_t cmd_buffer = {0};
@@ -42,7 +37,6 @@ json_parser_status_t parse_json(char *data, uint16_t *ret_id)
     new_command.id = id->valueint;
     *ret_id = new_command.id;
 
-    // Parsear intensity (valor 0-255)
     cJSON *intensity = cJSON_GetObjectItem(json, "intensity");
     if (!(cJSON_IsNumber(intensity)))
     {
@@ -58,7 +52,6 @@ json_parser_status_t parse_json(char *data, uint16_t *ret_id)
 
 json_parser_status_t parse_cmd(data_cmd cmd, char *uart_string)
 {
-    // Formato: S:CMD:INTENSITY:ID:E
     snprintf(uart_string, CMD_LEN, "S:%u:%u:%u:E",
              (unsigned int)cmd.cmd,
              (unsigned int)cmd.intensity,

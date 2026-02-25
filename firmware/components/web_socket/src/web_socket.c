@@ -1,19 +1,22 @@
 /* ======================================
-- File: web_socket.c
-- Description: Implementation of the web socket logic for communication between ESP32-cam and WebServer.
-- Author/s: @JuanCruzFerreiraM
-- Last-update: 2026-02-03
-- ====================================== */
+ * File: web_socket.c
+ * Description: WebSocket client for Rover backend (commands and error stream)
+ * Author/s: @JuanCruzFerreiraM
+ * Last-update: 2026-02-19
+ * ====================================== */
 
 #include "web_socket.h"
 #include "esp_crt_bundle.h"
 #include "error_control.h"
 #include "esp_log.h"
+#include "server_ip_config.h"
+#include "uart_task.h"
+#include <stdio.h>
 
 void websocket_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data);
 static void send_error_task(void *pvParameters);
 
-static const char *WEBSOCKET_URI = "ws://10.0.142.92:8080/ws/esp"; // Just for test, it should be another one.
+#define WEBSOCKET_URI_MAX_LEN 64
 static const int STACK_SIZE = 4096;
 
 static esp_websocket_client_handle_t client_handler = NULL;
@@ -21,9 +24,17 @@ static TaskHandle_t task_handler = NULL;
 
 esp_err_t websocket_start()
 {
+    static char uri_buf[WEBSOCKET_URI_MAX_LEN];
+    char server_ip[MAX_SERVER_IP_LENGTH] = "192.168.1.34";
+
+    if (storage_get_server_ip(server_ip, sizeof(server_ip)) != ESP_OK)
+    {
+        /* Keep default 192.168.1.34 */
+    }
+    (void)snprintf(uri_buf, sizeof(uri_buf), "ws://%s:8080/ws/esp", server_ip);
 
     esp_websocket_client_config_t config = {0};
-    config.uri = WEBSOCKET_URI;
+    config.uri = uri_buf;
     config.reconnect_timeout_ms = 10000;
     // config.crt_bundle_attach = esp_crt_bundle_attach;
     // config.headers = "ngrok-skip-browser-warning: true\r\n";
@@ -49,7 +60,6 @@ esp_err_t websocket_start()
         return err;
     }
 
-    // Crear tarea para enviar errores a la web
     xTaskCreate(
         send_error_task,
         "ws_error_task",
@@ -74,6 +84,14 @@ void websocket_stop()
     client_handler = NULL;
 }
 
+void websocket_trigger_reconnect(void)
+{
+    if (client_handler == NULL)
+        return;
+    esp_websocket_client_stop(client_handler);
+    esp_websocket_client_start(client_handler);
+}
+
 void websocket_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data)
 {
     esp_websocket_event_data_t *data = (esp_websocket_event_data_t *)event_data;
@@ -85,10 +103,9 @@ void websocket_event_handler(void *handler_args, esp_event_base_t base, int32_t 
     switch (event_id)
     {
     case WEBSOCKET_EVENT_DATA:
-        // Ignorar PING/PONG y frames binarios - solo procesar TEXT
         if (data->op_code != WS_TRANSPORT_OPCODES_TEXT)
         {
-            return; // Silenciosamente ignorar
+            return;
         }
         if (data->data_len > 0)
         {
@@ -119,7 +136,7 @@ void websocket_event_handler(void *handler_args, esp_event_base_t base, int32_t 
                 free(buffer);
                 return;
             }
-            ESP_LOGI("WS", "Comando recibido por WebSocket: CMD=%u, INTENSITY=%u, ID=%u", new_cmd.cmd, new_cmd.intensity, new_cmd.id);
+            ESP_LOGI("WS", "Command received via WebSocket: CMD=%u, INTENSITY=%u, ID=%u", new_cmd.cmd, new_cmd.intensity, new_cmd.id);
             if (xQueueSend(cmd_queue, &new_cmd, pdMS_TO_TICKS(100)) != pdTRUE)
             {
                 websocket_handler_error.general_errors = SEND_CMD_QUEUE_ERROR;
@@ -127,7 +144,6 @@ void websocket_event_handler(void *handler_args, esp_event_base_t base, int32_t 
                 free(buffer);
                 return;
             }
-            // Notificar al control de errores que se recibió un comando
             error_control_cmd_received();
             free(buffer);
         }
@@ -135,25 +151,22 @@ void websocket_event_handler(void *handler_args, esp_event_base_t base, int32_t 
     case WEBSOCKET_EVENT_DISCONNECTED:
         websocket_handler_error.general_errors = WEBSOCKET_DISCONNECTED;
         xQueueSend(to_error_queue, &websocket_handler_error, 0);
+        uart_send_stop_to_ciaa();
+        websocket_trigger_reconnect();
         break;
     default:
         break;
     }
 }
 
-/**
- * @brief Tarea que recibe errores del módulo error_control y los envía por WebSocket
- */
 static void send_error_task(void *pvParameters)
 {
     error_web_msg_t error_msg;
 
     while (1)
     {
-        // Esperar mensajes de error del módulo de control de errores
         if (xQueueReceive(from_error_queue, &error_msg, portMAX_DELAY) == pdTRUE)
         {
-            // Solo enviar si el WebSocket está conectado
             if (esp_websocket_client_is_connected(client_handler))
             {
                 esp_websocket_client_send_text(

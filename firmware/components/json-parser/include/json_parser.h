@@ -1,9 +1,9 @@
 /* ======================================
-- File: json_parser.h
-- Description: Header of the json parser and command buffer handler.
-- Author/s: @JuanCruzFerreiraM
-- Last-update: 2025-10-01
-- ====================================== */
+ * File: json_parser.h
+ * Description: JSON command parser and circular command buffer
+ * Author/s: @JuanCruzFerreiraM
+ * Last-update: 2026-02-19
+ * ====================================== */
 
 #ifndef JSON_PARSER
 #define JSON_PARSER
@@ -14,8 +14,6 @@
 #include "communication.h"
 
 #define CMD_BUFFER_LEN 10
-
-// We could define macros with the limits of the params. x_velocity_max, etc.
 
 typedef enum
 {
@@ -33,31 +31,38 @@ typedef struct
     uint8_t count;
 } cmd_buffer_t;
 
-// Declaración externa del buffer
 extern cmd_buffer_t cmd_buffer;
 
 /**
- * @brief This function takes a command from the buffer using it's id.
- * @param id (uint16_t) The id of the command looked.
- * @param command (*data_cmd) The info of the command looked.
- * @return a status code.
+ * @brief Get a command from the buffer by id.
+ * @param id Command id to look up.
+ * @param command Output; filled with command data if found.
+ * @return Status (STATUS_OK, STATUS_ID_NOT_FOUND, etc.).
  */
 json_parser_status_t take_cmd(uint16_t id, data_cmd *command);
 
 /**
- * @brief Let us modify a command using it's id.
- * @param id (uint16_t) The id of the command looked.
- * @return a status code.
+ * @brief Modify a command in the buffer by id.
+ * @param id Command id to modify.
+ * @param command New command data.
+ * @return Status code.
  */
 json_parser_status_t modify_cmd(uint16_t id, data_cmd *command);
 
 /**
- * @brief Parse a JSON to a data_cmd struct and saves it in the buffer.
- * @param data (char *) a string with the json.
- * @return a status code.
+ * @brief Parse JSON string into data_cmd and store in buffer.
+ * @param data JSON string.
+ * @param ret_id Output; id assigned to the stored command.
+ * @return Status code.
  */
 json_parser_status_t parse_json(char *data, uint16_t *ret_id);
 
+/**
+ * @brief Format a command as UART string (S:CMD:INTENSITY:ID:E).
+ * @param cmd Command to format.
+ * @param uart_string Output buffer.
+ * @return Status code.
+ */
 json_parser_status_t parse_cmd(data_cmd cmd, char *uart_string);
 
 #endif

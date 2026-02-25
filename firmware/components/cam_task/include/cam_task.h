@@ -1,9 +1,9 @@
 /* ======================================
-- File: cam_task.h
-- Description: header of streaming of MJPEG capture with a Cam using a HTTP server
-- Author/s: @JuanCruzFerreiraM
-- Last-update: 2026-02-03
-- ====================================== */
+ * File: cam_task.h
+ * Description: MJPEG camera capture and HTTP upload task
+ * Author/s: @JuanCruzFerreiraM
+ * Last-update: 2026-02-19
+ * ====================================== */
 #ifndef CAM_TASK
 #define CAM_TASK
 
@@ -32,37 +32,38 @@
 #define SIOC_GPIO_NUM 27
 #define PWDN_GPIO_NUM 32
 
-// URL del servidor para streaming (definida en cam_task.c)
 extern const char *CAM_SERVER_URL;
 
-/* ============== CAMERA QUALITY SETTINGS ============== */
-// Calidad inicial al abrir la cámara (debe coincidir con modo normal para evitar salto visual)
-#define CAM_JPEG_QUALITY_INIT 8
-// Normal mode: QVGA (320x240), quality 8 (mejor imagen), ~25 FPS (40ms delay) - sin subir carga
-#define CAM_NORMAL_FRAMESIZE FRAMESIZE_QVGA
-#define CAM_NORMAL_QUALITY 8
+/**
+ * @brief Set the server URL for video upload. Call before start_camera or camera_task.
+ * @param url Full URL (e.g. "http://192.168.1.34:8080/video/upload").
+ */
+void cam_task_set_server_url(const char *url);
+
+#define CAM_JPEG_QUALITY_INIT 10
+#define CAM_NORMAL_FRAMESIZE FRAMESIZE_QQVGA
+#define CAM_NORMAL_QUALITY 10
 #define CAM_NORMAL_DELAY_MS 40
 
-// Degraded mode: QQVGA (160x120), quality 15, 10 FPS (100ms delay)
 #define CAM_DEGRADED_FRAMESIZE FRAMESIZE_QQVGA
 #define CAM_DEGRADED_QUALITY 15
 #define CAM_DEGRADED_DELAY_MS 100
 
 /**
- * @brief This function initialize the camera using the camera_init() function define at esp_camera.h with the configuration for JPEG at 20FPS.
- *
- * @return esp_err_t. Error code from the function camera_init(), will return ESP_OK if the initialization was successful.
+ * @brief Initialize the camera (esp_camera with JPEG config).
+ * @return ESP_OK on success.
  */
 esp_err_t start_camera(void);
 
 /**
- * @brief Main camera streaming task
+ * @brief Main camera capture task (creates upload task and runs capture loop).
+ * @param pvParameters Unused.
  */
 void camera_task(void *pvParameters);
 
 /**
- * @brief Ajusta la calidad de la cámara según el estado del sistema
- * @param state Estado actual de la cámara desde error_control
+ * @brief Adjust camera quality and frame size based on system state.
+ * @param state Current camera state from error_control.
  */
 void camera_adjust_quality(camera_state_t state);
 

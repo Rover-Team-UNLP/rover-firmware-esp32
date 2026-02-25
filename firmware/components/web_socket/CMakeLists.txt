@@ -10,4 +10,6 @@ idf_component_register(
         freertos
         json-parser
         error_control
+        wifi_provisioning
+        uart_task
 )

@@ -9,7 +9,7 @@ idf_component_register(
         web_socket
         wifi_provisioning
         cam_task
-        uart-task
+        uart_task
         json-parser
         freertos
         error_control

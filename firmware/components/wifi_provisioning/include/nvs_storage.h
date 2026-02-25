@@ -1,12 +1,21 @@
+/* ======================================
+ * File: nvs_storage.h
+ * Description: NVS access for WiFi credentials and server IP
+ * Author/s: @JuanCruzFerreiraM
+ * Last-update: 2026-02-19
+ * ====================================== */
+
 #ifndef NVS_STORAGE
 #define NVS_STORAGE
 
 #include <nvs_flash.h>
 #include <nvs.h>
+#include <stddef.h>
 #include <stdint.h>
 
 #define MAX_SSID_LENGTH 32
 #define MAX_PASSW_LENGTH 64
+#define MAX_SERVER_IP_LENGTH 16
 
 /**
  * @brief Initialize the Non-Volatile Storage (NVS) flash partition.
@@ -56,6 +65,21 @@ esp_err_t storage_get_credentials(char * ssid, char * password);
  */
 esp_err_t storage_set_credentials(char * ssid, char * password);
 
+/**
+ * @brief Persist server IP to NVS (used for WebSocket and camera upload URL).
+ *
+ * @param[in] ip  Server IP string (e.g. "192.168.1.34").
+ * @return ESP_OK on success.
+ */
+esp_err_t storage_set_server_ip(const char *ip);
 
+/**
+ * @brief Retrieve server IP from NVS.
+ *
+ * @param[out] ip       Buffer to store the IP string.
+ * @param[in]  max_len  Size of the buffer.
+ * @return ESP_OK if found; ESP_ERR_NVS_NOT_FOUND if not set (caller may use default).
+ */
+esp_err_t storage_get_server_ip(char *ip, size_t max_len);
 
 #endif

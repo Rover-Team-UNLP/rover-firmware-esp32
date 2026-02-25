@@ -1,9 +1,9 @@
 /* ======================================
-- File: app_globals.h
-- Description: Global variables and types for the app
-- Author/s: @JuanCruzFerreiraM
-- Last-update: 2026-01-30
-- ====================================== */
+ * File: app_globals.h
+ * Description: Global queues and types for the Rover firmware
+ * Author/s: @JuanCruzFerreiraM
+ * Last-update: 2026-02-19
+ * ====================================== */
 
 #ifndef APP_GLOBALS_H
 #define APP_GLOBALS_H
@@ -24,23 +24,21 @@ typedef enum
     WEB_SOCKET,
 } source_type_t;
 
+/** Error codes from camera, UART, WebSocket, WiFi, and system. */
 typedef enum
 {
-    // Camera errors
     HTTP_CLIENT_NO_OPEN = 0,
     UL_STATUS_FAIL,
     FRAME_NULL,
     WRITE_ERROR,
     CAMERA_INIT_FAIL,
 
-    // UART errors
     NO_ACK,
     UART_INVALID_CMD,
     UART_INVALID_PARAMS,
     UART_UNKNOWN_RESPONSE,
     UART_PARSE_FAIL,
 
-    // WebSocket errors
     NULL_BUFFER,
     PARSE_ERROR,
     SEND_CMD_QUEUE_ERROR,
@@ -50,13 +48,10 @@ typedef enum
     WEBSOCKET_REGISTER_FAIL,
     WEBSOCKET_START_FAIL,
 
-    // WiFi errors
     WIFI_CONNECTION_FAIL,
 
-    // System errors
     QUEUE_CREATE_FAIL,
 
-    // Keep this last for counting
     ROVER_ERROR_COUNT
 } rover_errors_t;
 

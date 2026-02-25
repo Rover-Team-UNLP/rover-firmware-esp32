@@ -1,3 +1,10 @@
+/* ======================================
+ * File: http_portal.h
+ * Description: HTTP captive portal for WiFi provisioning
+ * Author/s: @JuanCruzFerreiraM
+ * Last-update: 2026-02-19
+ * ====================================== */
+
 #ifndef HTTP_PORTAL_H
 #define HTTP_PORTAL_H
 
@@ -5,31 +12,21 @@
 #include "esp_err.h"
 #include "nvs_storage.h"
 
-typedef struct {
+typedef struct
+{
     httpd_handle_t handler;
     esp_err_t return_err;
-} server_start_return_t; 
-
-
+} server_start_return_t;
 
 /**
- * @brief Starts the web server for WiFi provisioning.
- * * This function allocates memory for the server instance, starts the
- * HTTP daemon on port 80, and registers the URI handlers for the
- * configuration page (GET) and the credential submission (POST).
- *
- * @return
- * - httpd_handle_t: A handle to the server instance if successful.
- * - NULL: If the server failed to start.
+ * @brief Start the provisioning web server (port 80, GET/POST handlers).
+ * @return Struct with server handle and status; handler is NULL on failure.
  */
 server_start_return_t http_portal_start(void);
 
 /**
- * @brief Stops the provisioning web server.
- * * Frees all resources, closes active sockets, and deletes the
- * server handle. This should be called once credentials are
- * received and saved to NVS to free RAM for the camera stream.
- * * @param handle The handle of the server to stop.
+ * @brief Stop the provisioning web server and free resources.
+ * @param handle Server handle returned by http_portal_start().
  */
 void http_portal_stop(httpd_handle_t handle);
 

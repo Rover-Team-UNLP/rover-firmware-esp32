@@ -1,3 +1,10 @@
+/* ======================================
+ * File: dns_server.c
+ * Description: DNS captive-portal server (UDP 53, responds with AP IP)
+ * Author/s: @JuanCruzFerreiraM
+ * Last-update: 2026-02-19
+ * ====================================== */
+
 #include "dns_server.h"
 
 static void dns_task(void *pvParameters);

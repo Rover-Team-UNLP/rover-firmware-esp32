@@ -1,3 +1,10 @@
+/* ======================================
+ * File: http_portal.c
+ * Description: HTTP captive portal for WiFi provisioning (GET form, POST credentials)
+ * Author/s: @JuanCruzFerreiraM
+ * Last-update: 2026-02-19
+ * ====================================== */
+
 #include "http_portal.h"
 
 static esp_err_t get_handler(httpd_req_t *);
@@ -122,6 +129,10 @@ static const char *HTML_FORM =
     "<div class=\"input-group\">"
     "<label for=\"password\">Contraseña</label>"
     "<input type=\"password\" id=\"password\" name=\"password\" placeholder=\"••••••••\" required>"
+    "</div>"
+    "<div class=\"input-group\">"
+    "<label for=\"server_ip\">IP del servidor</label>"
+    "<input type=\"text\" id=\"server_ip\" name=\"server_ip\" placeholder=\"192.168.1.34\" autocomplete=\"off\">"
     "</div>"
     "<button type=\"submit\">Guardar y Conectar</button>"
     "</form>"
@@ -306,9 +317,10 @@ static esp_err_t get_handler(httpd_req_t *req)
 
 static esp_err_t post_handler(httpd_req_t *req)
 {
-    char content[200];
+    char content[256];
     char ssid[MAX_SSID_LENGTH];
     char passwd[MAX_PASSW_LENGTH];
+    char server_ip[MAX_SERVER_IP_LENGTH] = {0};
     if (req->content_len >= sizeof(content))
     {
         httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Buffer Overflow");
@@ -329,9 +341,15 @@ static esp_err_t post_handler(httpd_req_t *req)
         err = httpd_query_key_value(content, "password", passwd, sizeof(passwd));
         if (err == ESP_OK)
         {
+            (void)httpd_query_key_value(content, "server_ip", server_ip, sizeof(server_ip));
+
             err = storage_set_credentials(ssid, passwd);
             if (err == ESP_OK)
             {
+                if (server_ip[0] != '\0')
+                {
+                    (void)storage_set_server_ip(server_ip);
+                }
                 httpd_resp_set_type(req, "text/html");
                 httpd_resp_send(req, SUCCESS_RESPONSE, HTTPD_RESP_USE_STRLEN);
 

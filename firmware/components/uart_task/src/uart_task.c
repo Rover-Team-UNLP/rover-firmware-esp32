@@ -1,9 +1,9 @@
 /* ======================================
-- File: uart_task.c
-- Description: Implementation of the uart_task
-- Author/s: @JuanCruzFerreiraM
-- Last-update: 2026-02-03
-- ====================================== */
+ * File: uart_task.c
+ * Description: UART task for ESP32-CIAA command/response
+ * Author/s: @JuanCruzFerreiraM
+ * Last-update: 2026-02-19
+ * ====================================== */
 #include "uart_task.h"
 #include "error_control.h"
 #include "esp_log.h"
@@ -50,6 +50,12 @@ void init_uart()
     }
 }
 
+void uart_send_stop_to_ciaa(void)
+{
+    static const char stop_cmd[] = "S:4:0:0:E";
+    uart_write_bytes(UART_NUM, stop_cmd, strlen(stop_cmd));
+}
+
 void task_uart(void *pvParameters)
 {
     while (1)
@@ -60,48 +66,47 @@ void task_uart(void *pvParameters)
 
         if (xQueueReceive(uart_queue, &event, portMAX_DELAY) == pdTRUE)
         {
-            ESP_LOGI("UART_TASK", "Evento UART recibido: tipo=%d, size=%d", event.type, event.size);
+            ESP_LOGI("UART_TASK", "UART event: type=%d, size=%d", event.type, event.size);
             if (event.type == UART_DATA)
             {
                 int read_bytes = uart_read_bytes(UART_NUM, data, RESPONSE_LEN, pdMS_TO_TICKS(50));
                 data[read_bytes] = '\0';
-                ESP_LOGI("UART_TASK", "Datos recibidos por UART: '%s' (%d bytes)", data, read_bytes);
+                ESP_LOGI("UART_TASK", "UART data: '%s' (%d bytes)", data, read_bytes);
                 ciaa_response = parse_data(data, read_bytes);
                 if (ciaa_response.response != -1)
                 {
-                    ESP_LOGI("UART_TASK", "Respuesta parseada: response=%d, id=%d", ciaa_response.response, ciaa_response.id);
+                    ESP_LOGI("UART_TASK", "Parsed response: response=%d, id=%d", ciaa_response.response, ciaa_response.id);
                     switch (ciaa_response.response)
                     {
                     case RESP_READY:
                         ready_handler();
                         break;
                     case RESP_ERR_INVALID_COMMAND:
-                        ESP_LOGW("UART_TASK", "Comando inválido recibido");
+                        ESP_LOGW("UART_TASK", "Invalid command received");
                         error_handler(ciaa_response);
                         break;
                     case RESP_ERR_INVALID_PARAMS:
-                        ESP_LOGW("UART_TASK", "Parámetros inválidos recibidos");
+                        ESP_LOGW("UART_TASK", "Invalid params received");
                         error_handler(ciaa_response);
                         break;
                     default:
-                        ESP_LOGW("UART_TASK", "Respuesta desconocida recibida");
+                        ESP_LOGW("UART_TASK", "Unknown response received");
                         not_known_response();
                         break;
                     }
                 }
                 else
                 {
-                    ESP_LOGW("UART_TASK", "No se pudo parsear la respuesta recibida");
+                    ESP_LOGW("UART_TASK", "Failed to parse response");
                 }
             }
-            // Puedes agregar más logs para otros tipos de eventos si lo deseas
         }
     }
 }
 
 static void ready_handler()
 {
-    ESP_LOGI("UART_TASK", "Se recibió READY, enviando comando a la CIAA");
+    ESP_LOGI("UART_TASK", "READY received, sending command to CIAA");
     data_cmd command;
     char data[RESPONSE_LEN + 1];
     char cmd_str[CMD_LEN];
@@ -112,7 +117,6 @@ static void ready_handler()
         return;
     }
 
-    // Formatear comando: S:CMD:INTENSITY:ID:E
     snprintf(cmd_str, CMD_LEN, cmd_format,
              (unsigned int)command.cmd,
              (unsigned int)command.intensity,
@@ -123,27 +127,26 @@ static void ready_handler()
 
     while (i <= 3 && !is_ack)
     {
-        ESP_LOGI("UART_TASK", "Enviando comando por UART: '%s' (intento %d)", cmd_str, i + 1);
+        ESP_LOGI("UART_TASK", "Sending command: '%s' (attempt %d)", cmd_str, i + 1);
         uart_write_bytes(UART_NUM, cmd_str, strlen(cmd_str));
         int read_bytes = uart_read_bytes(UART_NUM, data, RESPONSE_LEN, ACK_AWAIT_MS / portTICK_PERIOD_MS);
         data[read_bytes] = '\0';
-        ESP_LOGI("UART_TASK", "Esperando ACK, recibido: '%s' (%d bytes)", data, read_bytes);
+        ESP_LOGI("UART_TASK", "Waiting for ACK, received: '%s' (%d bytes)", data, read_bytes);
         if (parse_data(data, read_bytes).response == RESP_ACK)
         {
             is_ack = 1;
-            ESP_LOGI("UART_TASK", "ACK recibido correctamente para el comando");
-            // Notificar al control de errores que el comando se envió exitosamente
+            ESP_LOGI("UART_TASK", "ACK received for command");
             error_control_cmd_sent_ok();
         }
         if (!is_ack && i < 3)
         {
-            vTaskDelay(pdMS_TO_TICKS(50));
+            vTaskDelay(pdMS_TO_TICKS(1000));
         }
         i++;
     }
     if (!is_ack)
     {
-        ESP_LOGE("UART_TASK", "No se recibió ACK tras 3 intentos");
+        ESP_LOGE("UART_TASK", "No ACK after 3 attempts");
     }
 
     if (!is_ack)
@@ -168,7 +171,7 @@ static void error_handler(data_parse error)
     else if (error.response == RESP_ERR_INVALID_PARAMS)
         gen_err = UART_INVALID_PARAMS;
 
-    ESP_LOGE("UART_TASK", "Manejando error UART: response=%d, id=%d, tipo_error=%d", error.response, error.id, gen_err);
+    ESP_LOGE("UART_TASK", "UART error: response=%d, id=%d, err=%d", error.response, error.id, gen_err);
     Error_inf new_error = {
         .source = UART,
         .id = error.id,
@@ -176,12 +179,11 @@ static void error_handler(data_parse error)
         .general_errors = gen_err,
     };
     xQueueSend(to_error_queue, &new_error, 0);
-    // Aca deberíamos esperar un respuesta del manejador de errores, pero todavía tengo que diseñar las diferentes politics de error
 }
 
 static void not_known_response(void)
 {
-    ESP_LOGW("UART_TASK", "Respuesta desconocida recibida, notificando error");
+    ESP_LOGW("UART_TASK", "Unknown response, reporting error");
     Error_inf unknown_error = {
         .id = 0,
         .source = UART,
@@ -202,24 +204,30 @@ static data_parse parse_data(char *data, int read_bytes)
         return final;
     }
 
-    if (*(data + read_bytes - 1) != 'E')
+    /* Ignorar CR/LF al final (p. ej. CIAA envía "S:1:0:E\n" o "S:1:0:E\r\n") */
+    while (read_bytes > 0 && (data[read_bytes - 1] == '\r' || data[read_bytes - 1] == '\n'))
+    {
+        read_bytes--;
+    }
+
+    if (read_bytes == 0 || *(data + read_bytes - 1) != 'E')
     {
         return final;
     }
 
     *(data + read_bytes) = '\0';
 
-    uint8_t temp_resp;
-    uint16_t temp_id;
+    int tmp_resp;
+    int tmp_id;
     char start_char;
     char end_char;
 
-    uint8_t items = sscanf(data, response_format, &start_char, &temp_resp, &temp_id, &end_char);
+    int items = sscanf(data, response_format, &start_char, &tmp_resp, &tmp_id, &end_char);
 
     if (items == 4 && start_char == 'S' && end_char == 'E')
     {
-        final.id = temp_id;
-        final.response = temp_resp;
+        final.id = (uint16_t)tmp_id;
+        final.response = (uart_resp_id_t)tmp_resp;
     }
 
     return final;
